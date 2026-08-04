@@ -22,9 +22,7 @@ export default function AvailablePlayers({
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900">
       <div className="border-b border-zinc-800 p-6">
-        <h2 className="text-2xl font-bold">
-          Available Players
-        </h2>
+        <h2 className="text-2xl font-bold">Available Players</h2>
 
         <div className="mt-4 flex items-center gap-3 rounded-xl border border-zinc-800 bg-black px-4">
           <Search size={18} className="text-zinc-500" />
@@ -47,7 +45,7 @@ export default function AvailablePlayers({
             <div>
               <div className="flex items-center gap-3">
                 <span className="font-bold text-yellow-400">
-                  #{player.rank}
+                  #{player.seasonStartingRank}
                 </span>
 
                 <h3 className="font-bold text-white">
@@ -56,7 +54,7 @@ export default function AvailablePlayers({
               </div>
 
               <p className="mt-1 text-sm text-zinc-500">
-                {player.country} • {player.championshipPoints} CP
+                {player.country}
               </p>
             </div>
 

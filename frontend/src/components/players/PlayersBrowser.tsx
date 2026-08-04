@@ -1,69 +1,52 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
-const players = [
-  {
-    rank: 1,
-    name: "Tord Reklev",
-    country: "Norway",
-    cp: 850,
-    fantasyPoints: 412,
-    recentFinish: "Top 4",
-    trend: "up",
-  },
-  {
-    rank: 2,
-    name: "Azul Garcia Griego",
-    country: "United States",
-    cp: 790,
-    fantasyPoints: 389,
-    recentFinish: "Top 8",
-    trend: "up",
-  },
-  {
-    rank: 3,
-    name: "Isaiah Bradner",
-    country: "United States",
-    cp: 735,
-    fantasyPoints: 361,
-    recentFinish: "Top 16",
-    trend: "same",
-  },
-  {
-    rank: 4,
-    name: "Rahul Reddy",
-    country: "United States",
-    cp: 701,
-    fantasyPoints: 344,
-    recentFinish: "Top 32",
-    trend: "down",
-  },
-  {
-    rank: 5,
-    name: "Pedro Torres",
-    country: "Spain",
-    cp: 682,
-    fantasyPoints: 329,
-    recentFinish: "Top 8",
-    trend: "up",
-  },
-  {
-    rank: 6,
-    name: "Caleb Gedemer",
-    country: "United States",
-    cp: 655,
-    fantasyPoints: 310,
-    recentFinish: "Top 64",
-    trend: "down",
-  },
-];
+type Player = {
+  id: number;
+  name: string;
+  country: string;
+  seasonStartingRank: number;
+  fantasyPoints: number;
+  recentFinish: string;
+};
 
 export default function PlayersBrowser() {
+  const [players, setPlayers] = useState<Player[]>([]);
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState("All Countries");
-  const [sortBy, setSortBy] = useState("Fantasy Rank");
+  const [sortBy, setSortBy] = useState("Starting Rank");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadPlayers() {
+      try {
+        const response = await fetch("http://localhost:5255/api/players");
+
+        if (!response.ok) {
+          throw new Error("Failed to load players");
+        }
+
+        const data: Player[] = await response.json();
+        setPlayers(data);
+      } catch {
+        setError("Could not connect to the player API.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadPlayers();
+  }, []);
+
+  const countries = useMemo(() => {
+    return [
+      "All Countries",
+      ...Array.from(new Set(players.map((player) => player.country))),
+    ];
+  }, [players]);
 
   const filteredPlayers = useMemo(() => {
     let result = [...players];
@@ -78,12 +61,10 @@ export default function PlayersBrowser() {
       result = result.filter((player) => player.country === country);
     }
 
-    if (sortBy === "Fantasy Rank") {
-      result.sort((a, b) => a.rank - b.rank);
-    }
-
-    if (sortBy === "Championship Points") {
-      result.sort((a, b) => b.cp - a.cp);
+    if (sortBy === "Starting Rank") {
+      result.sort(
+        (a, b) => a.seasonStartingRank - b.seasonStartingRank
+      );
     }
 
     if (sortBy === "Fantasy Points") {
@@ -91,7 +72,23 @@ export default function PlayersBrowser() {
     }
 
     return result;
-  }, [search, country, sortBy]);
+  }, [players, search, country, sortBy]);
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center text-zinc-400">
+        Loading players...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-900 bg-red-950/30 p-6 text-red-400">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -113,10 +110,11 @@ export default function PlayersBrowser() {
           onChange={(e) => setCountry(e.target.value)}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none"
         >
-          <option>All Countries</option>
-          <option>United States</option>
-          <option>Norway</option>
-          <option>Spain</option>
+          {countries.map((countryOption) => (
+            <option key={countryOption} value={countryOption}>
+              {countryOption}
+            </option>
+          ))}
         </select>
 
         <select
@@ -124,9 +122,8 @@ export default function PlayersBrowser() {
           onChange={(e) => setSortBy(e.target.value)}
           className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none"
         >
-          <option>Fantasy Rank</option>
-          <option>Championship Points</option>
-          <option>Fantasy Points</option>
+          <option value="Starting Rank">Starting Rank</option>
+          <option value="Fantasy Points">Fantasy Points</option>
         </select>
       </div>
 
@@ -135,24 +132,22 @@ export default function PlayersBrowser() {
           <table className="w-full text-left">
             <thead className="border-b border-zinc-800 bg-zinc-950 text-sm text-zinc-500">
               <tr>
-                <th className="px-6 py-4">Rank</th>
+                <th className="px-6 py-4">Starting Rank</th>
                 <th className="px-6 py-4">Player</th>
                 <th className="px-6 py-4">Country</th>
-                <th className="px-6 py-4">CP</th>
                 <th className="px-6 py-4">Fantasy Points</th>
                 <th className="px-6 py-4">Recent Finish</th>
-                <th className="px-6 py-4">Trend</th>
               </tr>
             </thead>
 
             <tbody>
               {filteredPlayers.map((player) => (
                 <tr
-                  key={player.name}
+                  key={player.id}
                   className="border-b border-zinc-800 transition last:border-b-0 hover:bg-zinc-800/50"
                 >
                   <td className="px-6 py-5 font-bold text-yellow-400">
-                    #{player.rank}
+                    #{player.seasonStartingRank}
                   </td>
 
                   <td className="px-6 py-5 font-bold text-white">
@@ -163,34 +158,12 @@ export default function PlayersBrowser() {
                     {player.country}
                   </td>
 
-                  <td className="px-6 py-5 text-zinc-300">
-                    {player.cp}
-                  </td>
-
                   <td className="px-6 py-5 font-bold text-white">
                     {player.fantasyPoints}
                   </td>
 
                   <td className="px-6 py-5 text-zinc-300">
-                    {player.recentFinish}
-                  </td>
-
-                  <td className="px-6 py-5">
-                    <span
-                      className={
-                        player.trend === "up"
-                          ? "text-green-400"
-                          : player.trend === "down"
-                          ? "text-red-400"
-                          : "text-zinc-400"
-                      }
-                    >
-                      {player.trend === "up"
-                        ? "↑"
-                        : player.trend === "down"
-                        ? "↓"
-                        : "→"}
-                    </span>
+                    {player.recentFinish || "—"}
                   </td>
                 </tr>
               ))}

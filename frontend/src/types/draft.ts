@@ -2,9 +2,9 @@ export type Player = {
   id: number;
   name: string;
   country: string;
-  rank: number;
-  championshipPoints: number;
+  seasonStartingRank: number;
   fantasyPoints: number;
+  recentFinish: string;
 };
 
 export type FantasyTeam = {
@@ -17,4 +17,20 @@ export type DraftPick = {
   round: number;
   team: FantasyTeam;
   player: Player;
+};
+
+export type LeagueMember = {
+  id: number;
+  teamName: string;
+  leagueId: number;
+  isCommissioner: boolean;
+};
+
+export type League = {
+  id: number;
+  name: string;
+  inviteCode: string;
+  maxTeams: number;
+  createdAt: string;
+  members: LeagueMember[];
 };

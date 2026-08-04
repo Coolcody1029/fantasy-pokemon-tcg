@@ -53,7 +53,7 @@ export default function DraftRosters({
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-yellow-400">
-                          #{pick.player.rank}
+                          #{pick.player.seasonStartingRank}
                         </span>
 
                         <span className="text-xs text-zinc-500">
