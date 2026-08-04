@@ -109,7 +109,58 @@ public class DraftsController : ControllerBase
             draft.CreatedAt
         });
     }
+    [HttpPost("{draftId:int}/complete")]
+    public async Task<ActionResult> CompleteDraft(int draftId)
+    {
+    var draft = await _context.Drafts
+        .Include(d => d.Picks)
+        .FirstOrDefaultAsync(d => d.Id == draftId);
 
+    if (draft == null)
+    {
+        return NotFound("Draft not found.");
+    }
+
+    if (draft.IsComplete)
+    {
+        return BadRequest("Draft is already complete.");
+    }
+
+    if (draft.Picks.Count == 0)
+    {
+        return BadRequest("Cannot complete an empty draft.");
+    }
+
+    var existingRosterPlayers = await _context.RosterPlayers
+        .Where(r => r.LeagueMember.LeagueId == draft.LeagueId)
+        .ToListAsync();
+
+    if (existingRosterPlayers.Count > 0)
+    {
+        return BadRequest("Season rosters already exist for this league.");
+    }
+
+    var rosterPlayers = draft.Picks.Select(pick => new RosterPlayer
+    {
+        LeagueMemberId = pick.LeagueMemberId,
+        PlayerId = pick.PlayerId
+    });
+
+    _context.RosterPlayers.AddRange(rosterPlayers);
+
+    draft.IsComplete = true;
+
+    await _context.SaveChangesAsync();
+
+    return Ok(new
+    {
+        message = "Draft completed successfully.",
+        draft.Id,
+        draft.LeagueId,
+        draft.IsComplete
+    });
+    }
+    
     [HttpPost("{draftId:int}/pick")]
     public async Task<ActionResult> MakePick(
         int draftId,

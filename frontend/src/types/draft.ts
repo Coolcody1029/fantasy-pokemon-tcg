@@ -5,6 +5,7 @@ export type Player = {
   seasonStartingRank: number;
   fantasyPoints: number;
   recentFinish: string;
+  seasonPoolOrder: number;
 };
 
 export type FantasyTeam = {

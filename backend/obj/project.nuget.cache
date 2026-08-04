@@ -1,9 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "lMR/fsbIS4Q=",
+  "dgSpecHash": "dG8g7TPIisk=",
   "success": true,
   "projectFilePath": "C:\\Users\\Cody\\Projects\\fantasy-pokemon-tcg\\backend\\backend.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\Cody\\.nuget\\packages\\anglesharp\\1.7.0\\anglesharp.1.7.0.nupkg.sha512",
     "C:\\Users\\Cody\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
     "C:\\Users\\Cody\\.nuget\\packages\\microsoft.aspnetcore.openapi\\10.0.10\\microsoft.aspnetcore.openapi.10.0.10.nupkg.sha512",
     "C:\\Users\\Cody\\.nuget\\packages\\microsoft.build.framework\\18.0.2\\microsoft.build.framework.18.0.2.nupkg.sha512",

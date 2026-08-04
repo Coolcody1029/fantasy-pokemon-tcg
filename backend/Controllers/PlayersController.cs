@@ -21,7 +21,7 @@ public class PlayersController : ControllerBase
     {
         var players = await _context.Players
             .Where(player => player.IsActiveForSeason)
-            .OrderBy(player => player.SeasonStartingRank)
+            .OrderBy(player => player.SeasonPoolOrder)
             .ToListAsync();
 
         return Ok(players);

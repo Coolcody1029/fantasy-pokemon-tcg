@@ -10,6 +10,7 @@ type Player = {
   seasonStartingRank: number;
   fantasyPoints: number;
   recentFinish: string;
+  seasonPoolOrder: number;
 };
 
 export default function PlayersBrowser() {

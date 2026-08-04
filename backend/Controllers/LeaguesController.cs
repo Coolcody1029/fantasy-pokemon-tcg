@@ -30,7 +30,50 @@ public class LeaguesController : ControllerBase
 
         return Ok(league);
     }
+    [HttpGet("{id:int}/rosters")]
+    public async Task<ActionResult> GetRosters(int id)
+    {
+    var league = await _context.Leagues
+        .Include(l => l.Members)
+        .FirstOrDefaultAsync(l => l.Id == id);
 
+    if (league == null)
+    {
+        return NotFound("League not found.");
+    }
+
+    var rosterPlayers = await _context.RosterPlayers
+        .Where(r => r.LeagueMember.LeagueId == id)
+        .Include(r => r.Player)
+        .Include(r => r.LeagueMember)
+        .ToListAsync();
+
+    var rosters = league.Members
+        .OrderBy(member => member.Id)
+        .Select(member => new
+        {
+            Team = new
+            {
+                member.Id,
+                Name = member.TeamName,
+                member.IsCommissioner
+            },
+
+            Players = rosterPlayers
+                .Where(r => r.LeagueMemberId == member.Id)
+                .Select(r => new
+                {
+                    r.Player.Id,
+                    r.Player.Name,
+                    r.Player.Country,
+                    r.Player.SeasonStartingRank,
+                    r.Player.FantasyPoints,
+                    r.Player.RecentFinish
+                })
+        });
+
+    return Ok(rosters);
+    }
     [HttpPost("join")]
     public async Task<ActionResult<League>> JoinLeague(JoinLeagueRequest request)
     {

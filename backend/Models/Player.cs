@@ -8,8 +8,15 @@ public class Player
 
     public string Country { get; set; } = string.Empty;
 
+    // Rank displayed by Limitless. Ties are allowed.
     public int SeasonStartingRank { get; set; }
 
+    // Unique position in our frozen Top 150 snapshot.
+    public int SeasonPoolOrder { get; set; }
+
+    public int LimitlessPoints { get; set; }
+
+    // Unique Limitless player identifier.
     public string? ExternalId { get; set; }
 
     public decimal FantasyPoints { get; set; }

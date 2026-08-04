@@ -1,5 +1,6 @@
 using backend.Data;
 using Microsoft.EntityFrameworkCore;
+using backend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +12,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     )
 );
 
+builder.Services.AddScoped<SeasonPlayerImportService>();
+builder.Services.AddHttpClient<LimitlessSnapshotService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>

@@ -21,5 +21,12 @@ public class AppDbContext : DbContext
 
     public DbSet<DraftPick> DraftPicks => Set<DraftPick>();
 
+    public DbSet<RosterPlayer> RosterPlayers => Set<RosterPlayer>();
+
+    public DbSet<RegionalEvent> RegionalEvents => Set<RegionalEvent>();
+
+    public DbSet<EventResult> EventResults => Set<EventResult>();
+
+    public DbSet<Matchup> Matchups => Set<Matchup>();
 }
 

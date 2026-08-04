@@ -29,6 +29,9 @@ export default function DraftRoom() {
 
   const [league, setLeague] = useState<League | null>(null);
   const [draftId, setDraftId] = useState<number | null>(null);
+  const [isComplete, setIsComplete] = useState(false);
+  const [completingDraft, setCompletingDraft] = useState(false);
+
   const [teams, setTeams] = useState<FantasyTeam[]>([]);
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
   const [draftPicks, setDraftPicks] = useState<DraftPick[]>([]);
@@ -108,6 +111,7 @@ export default function DraftRoom() {
 
         setDraftId(draftData.id);
         setDraftPicks(draftData.picks);
+        setIsComplete(draftData.isComplete);
 
         const draftedPlayerIds = new Set(
           draftData.picks.map((pick) => pick.player.id)
@@ -188,7 +192,7 @@ export default function DraftRoom() {
   const currentTeam = getCurrentTeam();
 
   async function handleDraft(player: Player) {
-    if (savingPick) {
+    if (savingPick || isComplete) {
       return;
     }
 
@@ -211,10 +215,14 @@ export default function DraftRoom() {
 
       if (!response.ok) {
         const message = await response.text();
-        throw new Error(message || "Could not save draft pick.");
+
+        throw new Error(
+          message || "Could not save draft pick."
+        );
       }
 
-      const savedPick: DraftPick = await response.json();
+      const savedPick: DraftPick =
+        await response.json();
 
       setDraftPicks((previous) => [
         ...previous,
@@ -238,23 +246,86 @@ export default function DraftRoom() {
     }
   }
 
+  async function handleCompleteDraft() {
+    if (!draftId || draftPicks.length === 0) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to complete the draft? This will lock the draft and create the season rosters."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setCompletingDraft(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `http://localhost:5255/api/drafts/${draftId}/complete`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        const message = await response.text();
+
+        throw new Error(
+          message || "Could not complete the draft."
+        );
+      }
+
+      setIsComplete(true);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Could not complete the draft.");
+      }
+    } finally {
+      setCompletingDraft(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-10">
-      <div className="mb-6">
-        <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
-          {league.name}
-        </p>
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
+            {league.name}
+          </p>
 
-        <h1 className="mt-1 text-2xl font-black">
-          Live Draft
-        </h1>
+          <h1 className="mt-1 text-2xl font-black">
+            {isComplete ? "Draft Complete" : "Live Draft"}
+          </h1>
+        </div>
+
+        {!isComplete && (
+          <button
+            onClick={handleCompleteDraft}
+            disabled={
+              completingDraft ||
+              draftPicks.length === 0
+            }
+            className="rounded-xl border border-yellow-400 px-5 py-3 font-bold text-yellow-400 transition hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {completingDraft
+              ? "Completing..."
+              : "Complete Draft"}
+          </button>
+        )}
       </div>
 
-      <DraftHeader
-        round={round}
-        pickNumber={pickNumber}
-        teamName={currentTeam.name}
-      />
+      {!isComplete && (
+        <DraftHeader
+          round={round}
+          pickNumber={pickNumber}
+          teamName={currentTeam.name}
+        />
+      )}
 
       {error && (
         <div className="mt-6 rounded-xl border border-red-900 bg-red-950/30 p-4 text-red-400">
@@ -264,10 +335,22 @@ export default function DraftRoom() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <AvailablePlayers
-            players={availablePlayers}
-            onDraft={handleDraft}
-          />
+          {isComplete ? (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center">
+              <p className="text-xl font-bold text-green-400">
+                Draft Complete
+              </p>
+
+              <p className="mt-2 text-zinc-500">
+                Season rosters have been created.
+              </p>
+            </div>
+          ) : (
+            <AvailablePlayers
+              players={availablePlayers}
+              onDraft={handleDraft}
+            />
+          )}
 
           {savingPick && (
             <p className="mt-3 text-sm text-zinc-500">

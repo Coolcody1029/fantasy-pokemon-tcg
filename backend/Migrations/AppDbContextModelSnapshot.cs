@@ -83,6 +83,35 @@ namespace backend.Migrations
                     b.ToTable("DraftPicks");
                 });
 
+            modelBuilder.Entity("backend.Models.EventResult", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("FantasyPoints")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Placement")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RegionalEventId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("RegionalEventId");
+
+                    b.ToTable("EventResults");
+                });
+
             modelBuilder.Entity("backend.Models.League", b =>
                 {
                     b.Property<int>("Id")
@@ -135,6 +164,39 @@ namespace backend.Migrations
                     b.ToTable("LeagueMembers");
                 });
 
+            modelBuilder.Entity("backend.Models.Matchup", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("LeagueId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RegionalEventId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TeamOneId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TeamTwoId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeagueId");
+
+                    b.HasIndex("RegionalEventId");
+
+                    b.HasIndex("TeamOneId");
+
+                    b.HasIndex("TeamTwoId");
+
+                    b.ToTable("Matchups");
+                });
+
             modelBuilder.Entity("backend.Models.Player", b =>
                 {
                     b.Property<int>("Id")
@@ -156,6 +218,9 @@ namespace backend.Migrations
                     b.Property<bool>("IsActiveForSeason")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("LimitlessPoints")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -164,12 +229,72 @@ namespace backend.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("SeasonPoolOrder")
+                        .HasColumnType("integer");
+
                     b.Property<int>("SeasonStartingRank")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
                     b.ToTable("Players");
+                });
+
+            modelBuilder.Entity("backend.Models.RegionalEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SeasonWeek")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RegionalEvents");
+                });
+
+            modelBuilder.Entity("backend.Models.RosterPlayer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LeagueMemberId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeagueMemberId");
+
+                    b.HasIndex("PlayerId");
+
+                    b.ToTable("RosterPlayers");
                 });
 
             modelBuilder.Entity("backend.Models.Draft", b =>
@@ -210,6 +335,25 @@ namespace backend.Migrations
                     b.Navigation("Player");
                 });
 
+            modelBuilder.Entity("backend.Models.EventResult", b =>
+                {
+                    b.HasOne("backend.Models.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.RegionalEvent", "RegionalEvent")
+                        .WithMany("Results")
+                        .HasForeignKey("RegionalEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+
+                    b.Navigation("RegionalEvent");
+                });
+
             modelBuilder.Entity("backend.Models.LeagueMember", b =>
                 {
                     b.HasOne("backend.Models.League", "League")
@@ -221,6 +365,60 @@ namespace backend.Migrations
                     b.Navigation("League");
                 });
 
+            modelBuilder.Entity("backend.Models.Matchup", b =>
+                {
+                    b.HasOne("backend.Models.League", "League")
+                        .WithMany()
+                        .HasForeignKey("LeagueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.RegionalEvent", "RegionalEvent")
+                        .WithMany()
+                        .HasForeignKey("RegionalEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.LeagueMember", "TeamOne")
+                        .WithMany()
+                        .HasForeignKey("TeamOneId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.LeagueMember", "TeamTwo")
+                        .WithMany()
+                        .HasForeignKey("TeamTwoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("League");
+
+                    b.Navigation("RegionalEvent");
+
+                    b.Navigation("TeamOne");
+
+                    b.Navigation("TeamTwo");
+                });
+
+            modelBuilder.Entity("backend.Models.RosterPlayer", b =>
+                {
+                    b.HasOne("backend.Models.LeagueMember", "LeagueMember")
+                        .WithMany()
+                        .HasForeignKey("LeagueMemberId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LeagueMember");
+
+                    b.Navigation("Player");
+                });
+
             modelBuilder.Entity("backend.Models.Draft", b =>
                 {
                     b.Navigation("Picks");
@@ -229,6 +427,11 @@ namespace backend.Migrations
             modelBuilder.Entity("backend.Models.League", b =>
                 {
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("backend.Models.RegionalEvent", b =>
+                {
+                    b.Navigation("Results");
                 });
 #pragma warning restore 612, 618
         }
