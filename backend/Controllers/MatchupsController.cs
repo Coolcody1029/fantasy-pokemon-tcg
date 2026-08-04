@@ -2,6 +2,8 @@ using backend.Data;
 using backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace backend.Controllers;
 
@@ -198,16 +200,48 @@ public class MatchupsController : ControllerBase
             }
         });
     }
+    
+    [Authorize]
     [HttpPost("generate/{leagueId:int}")]
     public async Task<ActionResult> GenerateSchedule(int leagueId)
     {
+    var userIdClaim =
+        User.FindFirstValue(
+            ClaimTypes.NameIdentifier
+        );
+
+    if (!int.TryParse(
+            userIdClaim,
+            out var userId))
+    {
+        return Unauthorized();
+    }
+
     var league = await _context.Leagues
         .Include(l => l.Members)
-        .FirstOrDefaultAsync(l => l.Id == leagueId);
+        .FirstOrDefaultAsync(l =>
+            l.Id == leagueId
+        );
 
     if (league == null)
     {
-        return NotFound("League not found.");
+        return NotFound(
+            "League not found."
+        );
+    }
+
+    var commissioner =
+        league.Members.FirstOrDefault(member =>
+            member.UserId == userId &&
+            member.IsCommissioner
+        );
+
+    if (commissioner == null)
+    {
+        return StatusCode(
+            StatusCodes.Status403Forbidden,
+            "Only the league commissioner can generate the schedule."
+        );
     }
 
     var teams = league.Members
@@ -221,9 +255,10 @@ public class MatchupsController : ControllerBase
         );
     }
 
-    var regionalEvents = await _context.RegionalEvents
-        .OrderBy(e => e.SeasonWeek)
-        .ToListAsync();
+    var regionalEvents =
+        await _context.RegionalEvents
+            .OrderBy(e => e.SeasonWeek)
+            .ToListAsync();
 
     if (regionalEvents.Count == 0)
     {
@@ -232,22 +267,39 @@ public class MatchupsController : ControllerBase
         );
     }
 
-    // During development, regenerate the league schedule
-    // from scratch to prevent duplicate or conflicting matchups.
-    var existingMatchups = await _context.Matchups
-        .Where(m => m.LeagueId == leagueId)
-        .ToListAsync();
+    /*
+     * Once any Regional has started, don't allow
+     * the schedule to be regenerated.
+     */
+    if (regionalEvents.Any(regional =>
+        regional.Status != "Upcoming"))
+    {
+        return BadRequest(
+            "The schedule cannot be regenerated after a Regional has started."
+        );
+    }
+
+    var existingMatchups =
+        await _context.Matchups
+            .Where(m =>
+                m.LeagueId == leagueId
+            )
+            .ToListAsync();
 
     if (existingMatchups.Count > 0)
     {
-        _context.Matchups.RemoveRange(existingMatchups);
+        _context.Matchups.RemoveRange(
+            existingMatchups
+        );
 
         await _context.SaveChangesAsync();
     }
 
-    var rounds = GenerateRoundRobinRounds(teams);
+    var rounds =
+        GenerateRoundRobinRounds(teams);
 
-    var newMatchups = new List<Matchup>();
+    var newMatchups =
+        new List<Matchup>();
 
     for (
         int eventIndex = 0;
@@ -255,12 +307,14 @@ public class MatchupsController : ControllerBase
         eventIndex++
     )
     {
-        var regionalEvent = regionalEvents[eventIndex];
+        var regionalEvent =
+            regionalEvents[eventIndex];
 
         var roundIndex =
             eventIndex % rounds.Count;
 
-        var pairings = rounds[roundIndex];
+        var pairings =
+            rounds[roundIndex];
 
         foreach (var pairing in pairings)
         {
@@ -268,15 +322,23 @@ public class MatchupsController : ControllerBase
                 new Matchup
                 {
                     LeagueId = leagueId,
-                    RegionalEventId = regionalEvent.Id,
-                    TeamOneId = pairing.TeamOne.Id,
-                    TeamTwoId = pairing.TeamTwo.Id
+
+                    RegionalEventId =
+                        regionalEvent.Id,
+
+                    TeamOneId =
+                        pairing.TeamOne.Id,
+
+                    TeamTwoId =
+                        pairing.TeamTwo.Id
                 }
             );
         }
     }
 
-    _context.Matchups.AddRange(newMatchups);
+    _context.Matchups.AddRange(
+        newMatchups
+    );
 
     await _context.SaveChangesAsync();
 
@@ -285,83 +347,74 @@ public class MatchupsController : ControllerBase
         LeagueId = leagueId,
         Teams = teams.Count,
         Regionals = regionalEvents.Count,
-        MatchupsCreated = newMatchups.Count,
-        Message = "Schedule generated successfully."
+        MatchupsCreated =
+            newMatchups.Count,
+
+        Message =
+            "Schedule generated successfully."
     });
     }
    
     
     private async Task<int> CalculateTeamScore(
-        int leagueMemberId,
-        int regionalEventId)
-    {
-        return await _context.RosterPlayers
-            .Where(r =>
-                r.LeagueMemberId == leagueMemberId
-            )
-            .Join(
-                _context.EventResults
-                    .Where(er =>
-                        er.RegionalEventId ==
-                        regionalEventId
-                    ),
-                roster => roster.PlayerId,
-                result => result.PlayerId,
-                (roster, result) =>
-                    result.FantasyPoints
-            )
-            .SumAsync();
+    int leagueMemberId,
+    int regionalEventId)
+{
+    return await _context.RegionalLineupEntries
+        .Where(entry =>
+            entry.LeagueMemberId == leagueMemberId &&
+            entry.RegionalEventId == regionalEventId
+        )
+        .Join(
+            _context.EventResults.Where(result =>
+                result.RegionalEventId == regionalEventId
+            ),
+            lineup => lineup.PlayerId,
+            result => result.PlayerId,
+            (lineup, result) => result.FantasyPoints
+        )
+        .SumAsync();
+
     }
 
-    private async Task<List<PlayerScoreDto>>
-        GetTeamBreakdown(
-            int leagueMemberId,
-            int regionalEventId)
+    private async Task<List<PlayerScoreDto>> GetTeamBreakdown(
+    int leagueMemberId,
+    int regionalEventId)
     {
-        var rosterPlayers =
-            await _context.RosterPlayers
-                .Where(r =>
-                    r.LeagueMemberId ==
-                    leagueMemberId
-                )
-                .Include(r => r.Player)
-                .ToListAsync();
+    var lineupPlayers = await _context.RegionalLineupEntries
+        .Where(entry =>
+            entry.LeagueMemberId == leagueMemberId &&
+            entry.RegionalEventId == regionalEventId
+        )
+        .Include(entry => entry.Player)
+        .OrderBy(entry => entry.Player.SeasonPoolOrder)
+        .ToListAsync();
 
-        var results =
-            await _context.EventResults
-                .Where(r =>
-                    r.RegionalEventId ==
-                    regionalEventId
-                )
-                .ToListAsync();
+    var results = await _context.EventResults
+        .Where(result =>
+            result.RegionalEventId == regionalEventId
+        )
+        .ToListAsync();
 
-        return rosterPlayers
-            .Select(roster =>
+    return lineupPlayers
+        .Select(lineup =>
+        {
+            var result = results.FirstOrDefault(result =>
+                result.PlayerId == lineup.PlayerId
+            );
+
+            return new PlayerScoreDto
             {
-                var result =
-                    results.FirstOrDefault(r =>
-                        r.PlayerId ==
-                        roster.PlayerId
-                    );
-
-                return new PlayerScoreDto
-                {
-                    PlayerId =
-                        roster.Player.Id,
-
-                    Name =
-                        roster.Player.Name,
-
-                    Placement =
-                        result?.Placement,
-
-                    FantasyPoints =
-                        result?.FantasyPoints ?? 0
-                };
-            })
-            .ToList();
- 
+                PlayerId = lineup.Player.Id,
+                Name = lineup.Player.Name,
+                Placement = result?.Placement,
+                FantasyPoints = result?.FantasyPoints ?? 0
+            };
+        })
+        .ToList();
     }
+ 
+    
     private static List<List<TeamPairing>>
     GenerateRoundRobinRounds(
         List<LeagueMember> leagueTeams)
@@ -426,7 +479,7 @@ public class MatchupsController : ControllerBase
     }
 
     return rounds;
-}
+    }
 
 }
 public class CreateMatchupRequest

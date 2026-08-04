@@ -1,7 +1,9 @@
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace backend.Controllers;
 
@@ -16,6 +18,9 @@ public class DraftsController : ControllerBase
         _context = context;
     }
 
+    /*
+     * Anyone can read the draft state.
+     */
     [HttpGet("league/{leagueId:int}")]
     public async Task<ActionResult> GetDraft(int leagueId)
     {
@@ -24,7 +29,9 @@ public class DraftsController : ControllerBase
                 .ThenInclude(p => p.Player)
             .Include(d => d.Picks)
                 .ThenInclude(p => p.LeagueMember)
-            .FirstOrDefaultAsync(d => d.LeagueId == leagueId);
+            .FirstOrDefaultAsync(d =>
+                d.LeagueId == leagueId
+            );
 
         if (draft == null)
         {
@@ -65,16 +72,47 @@ public class DraftsController : ControllerBase
         });
     }
 
+    /*
+     * Only the commissioner can create/start
+     * the league draft.
+     */
+    [Authorize]
     [HttpPost("league/{leagueId:int}")]
-    public async Task<ActionResult> CreateDraft(int leagueId)
+    public async Task<ActionResult> CreateDraft(
+        int leagueId)
     {
+        var userId = GetCurrentUserId();
+
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
         var league = await _context.Leagues
             .Include(l => l.Members)
-            .FirstOrDefaultAsync(l => l.Id == leagueId);
+            .FirstOrDefaultAsync(l =>
+                l.Id == leagueId
+            );
 
         if (league == null)
         {
-            return NotFound("League not found.");
+            return NotFound(
+                "League not found."
+            );
+        }
+
+        var commissioner = league.Members
+            .FirstOrDefault(member =>
+                member.UserId == userId.Value &&
+                member.IsCommissioner
+            );
+
+        if (commissioner == null)
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Only the league commissioner can start the draft."
+            );
         }
 
         if (league.Members.Count < 2)
@@ -84,8 +122,12 @@ public class DraftsController : ControllerBase
             );
         }
 
-        var existingDraft = await _context.Drafts
-            .FirstOrDefaultAsync(d => d.LeagueId == leagueId);
+        var existingDraft =
+            await _context.Drafts
+                .FirstOrDefaultAsync(d =>
+                    d.LeagueId ==
+                    leagueId
+                );
 
         if (existingDraft != null)
         {
@@ -97,9 +139,12 @@ public class DraftsController : ControllerBase
             LeagueId = leagueId
         };
 
-        _context.Drafts.Add(draft);
+        _context.Drafts.Add(
+            draft
+        );
 
-        await _context.SaveChangesAsync();
+        await _context
+            .SaveChangesAsync();
 
         return Ok(new
         {
@@ -109,88 +154,176 @@ public class DraftsController : ControllerBase
             draft.CreatedAt
         });
     }
+
+    /*
+     * Only the commissioner can complete
+     * the draft and create permanent rosters.
+     */
+    [Authorize]
     [HttpPost("{draftId:int}/complete")]
-    public async Task<ActionResult> CompleteDraft(int draftId)
+    public async Task<ActionResult> CompleteDraft(
+        int draftId)
     {
-    var draft = await _context.Drafts
-        .Include(d => d.Picks)
-        .FirstOrDefaultAsync(d => d.Id == draftId);
+        var userId = GetCurrentUserId();
 
-    if (draft == null)
-    {
-        return NotFound("Draft not found.");
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        var draft = await _context.Drafts
+            .Include(d => d.Picks)
+            .FirstOrDefaultAsync(d =>
+                d.Id == draftId
+            );
+
+        if (draft == null)
+        {
+            return NotFound(
+                "Draft not found."
+            );
+        }
+
+        var commissioner =
+            await _context.LeagueMembers
+                .FirstOrDefaultAsync(member =>
+                    member.LeagueId ==
+                        draft.LeagueId &&
+                    member.UserId ==
+                        userId.Value &&
+                    member.IsCommissioner
+                );
+
+        if (commissioner == null)
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Only the league commissioner can complete the draft."
+            );
+        }
+
+        if (draft.IsComplete)
+        {
+            return BadRequest(
+                "Draft is already complete."
+            );
+        }
+
+        if (draft.Picks.Count == 0)
+        {
+            return BadRequest(
+                "Cannot complete an empty draft."
+            );
+        }
+
+        var existingRosterPlayers =
+            await _context.RosterPlayers
+                .Where(r =>
+                    r.LeagueMember.LeagueId ==
+                    draft.LeagueId
+                )
+                .ToListAsync();
+
+        if (
+            existingRosterPlayers.Count > 0
+        )
+        {
+            return BadRequest(
+                "Season rosters already exist for this league."
+            );
+        }
+
+        var rosterPlayers =
+            draft.Picks.Select(
+                pick =>
+                    new RosterPlayer
+                    {
+                        LeagueMemberId =
+                            pick.LeagueMemberId,
+
+                        PlayerId =
+                            pick.PlayerId
+                    }
+            );
+
+        _context.RosterPlayers
+            .AddRange(
+                rosterPlayers
+            );
+
+        draft.IsComplete = true;
+
+        await _context
+            .SaveChangesAsync();
+
+        return Ok(new
+        {
+            message =
+                "Draft completed successfully.",
+
+            draft.Id,
+            draft.LeagueId,
+            draft.IsComplete
+        });
     }
 
-    if (draft.IsComplete)
-    {
-        return BadRequest("Draft is already complete.");
-    }
-
-    if (draft.Picks.Count == 0)
-    {
-        return BadRequest("Cannot complete an empty draft.");
-    }
-
-    var existingRosterPlayers = await _context.RosterPlayers
-        .Where(r => r.LeagueMember.LeagueId == draft.LeagueId)
-        .ToListAsync();
-
-    if (existingRosterPlayers.Count > 0)
-    {
-        return BadRequest("Season rosters already exist for this league.");
-    }
-
-    var rosterPlayers = draft.Picks.Select(pick => new RosterPlayer
-    {
-        LeagueMemberId = pick.LeagueMemberId,
-        PlayerId = pick.PlayerId
-    });
-
-    _context.RosterPlayers.AddRange(rosterPlayers);
-
-    draft.IsComplete = true;
-
-    await _context.SaveChangesAsync();
-
-    return Ok(new
-    {
-        message = "Draft completed successfully.",
-        draft.Id,
-        draft.LeagueId,
-        draft.IsComplete
-    });
-    }
-    
+    /*
+     * Only the logged-in user who owns
+     * the team whose turn it is may pick.
+     */
+    [Authorize]
     [HttpPost("{draftId:int}/pick")]
     public async Task<ActionResult> MakePick(
         int draftId,
         MakeDraftPickRequest request)
     {
+        var userId = GetCurrentUserId();
+
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
         var draft = await _context.Drafts
             .Include(d => d.Picks)
-            .FirstOrDefaultAsync(d => d.Id == draftId);
+            .FirstOrDefaultAsync(d =>
+                d.Id == draftId
+            );
 
         if (draft == null)
         {
-            return NotFound("Draft not found.");
+            return NotFound(
+                "Draft not found."
+            );
         }
 
         if (draft.IsComplete)
         {
-            return BadRequest("This draft is complete.");
+            return BadRequest(
+                "This draft is complete."
+            );
         }
 
-        var player = await _context.Players
-            .FirstOrDefaultAsync(p => p.Id == request.PlayerId);
+        var player =
+            await _context.Players
+                .FirstOrDefaultAsync(p =>
+                    p.Id ==
+                    request.PlayerId
+                );
 
         if (player == null)
         {
-            return NotFound("Player not found.");
+            return NotFound(
+                "Player not found."
+            );
         }
 
-        var alreadyDrafted = draft.Picks.Any(
-            p => p.PlayerId == player.Id
-        );
+        var alreadyDrafted =
+            draft.Picks.Any(
+                p =>
+                    p.PlayerId ==
+                    player.Id
+            );
 
         if (alreadyDrafted)
         {
@@ -199,48 +332,99 @@ public class DraftsController : ControllerBase
             );
         }
 
-        var teams = await _context.LeagueMembers
-            .Where(m => m.LeagueId == draft.LeagueId)
-            .OrderBy(m => m.Id)
-            .ToListAsync();
+        /*
+         * Load teams in the same order
+         * your existing snake draft uses.
+         */
+        var teams =
+            await _context.LeagueMembers
+                .Where(m =>
+                    m.LeagueId ==
+                    draft.LeagueId
+                )
+                .OrderBy(m => m.Id)
+                .ToListAsync();
 
         if (teams.Count == 0)
         {
-            return BadRequest("This league has no teams.");
+            return BadRequest(
+                "This league has no teams."
+            );
         }
 
-        var pickIndex = draft.Picks.Count;
+        /*
+         * Determine whose turn it is.
+         */
+        var pickIndex =
+            draft.Picks.Count;
 
         var round =
-            (pickIndex / teams.Count) + 1;
+            (pickIndex /
+                teams.Count) + 1;
 
         var position =
-            pickIndex % teams.Count;
+            pickIndex %
+            teams.Count;
 
         LeagueMember currentTeam;
 
         if (round % 2 == 1)
         {
-            currentTeam = teams[position];
+            currentTeam =
+                teams[position];
         }
         else
         {
             currentTeam =
-                teams[teams.Count - 1 - position];
+                teams[
+                    teams.Count -
+                    1 -
+                    position
+                ];
         }
 
-        var pick = new DraftPick
+        /*
+         * SECURITY:
+         *
+         * The logged-in user must own
+         * the team whose turn it is.
+         */
+        if (
+            currentTeam.UserId !=
+            userId.Value
+        )
         {
-            DraftId = draft.Id,
-            PlayerId = player.Id,
-            LeagueMemberId = currentTeam.Id,
-            PickNumber = pickIndex + 1,
-            Round = round
-        };
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                $"It is currently {currentTeam.TeamName}'s turn."
+            );
+        }
 
-        _context.DraftPicks.Add(pick);
+        var pick =
+            new DraftPick
+            {
+                DraftId =
+                    draft.Id,
 
-        await _context.SaveChangesAsync();
+                PlayerId =
+                    player.Id,
+
+                LeagueMemberId =
+                    currentTeam.Id,
+
+                PickNumber =
+                    pickIndex + 1,
+
+                Round =
+                    round
+            };
+
+        _context.DraftPicks.Add(
+            pick
+        );
+
+        await _context
+            .SaveChangesAsync();
 
         return Ok(new
         {
@@ -260,10 +444,33 @@ public class DraftsController : ControllerBase
 
             Team = new
             {
-                Id = currentTeam.Id,
-                Name = currentTeam.TeamName
+                Id =
+                    currentTeam.Id,
+
+                Name =
+                    currentTeam.TeamName
             }
         });
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var userIdClaim =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier
+            );
+
+        if (
+            !int.TryParse(
+                userIdClaim,
+                out var userId
+            )
+        )
+        {
+            return null;
+        }
+
+        return userId;
     }
 }
 

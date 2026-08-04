@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import { setAuthToken } from "@/lib/api";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
 
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,7 +24,31 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const response = await fetch(
+      const registerResponse = await fetch(
+        "http://localhost:5255/api/auth/register",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username,
+            email,
+            password,
+          }),
+        }
+      );
+
+      if (!registerResponse.ok) {
+        const message = await registerResponse.text();
+
+        throw new Error(
+          message || "Registration failed."
+        );
+      }
+
+      // Automatically log in immediately after registration.
+      const loginResponse = await fetch(
         "http://localhost:5255/api/auth/login",
         {
           method: "POST",
@@ -36,15 +62,13 @@ export default function LoginPage() {
         }
       );
 
-      if (!response.ok) {
-        const message = await response.text();
-
+      if (!loginResponse.ok) {
         throw new Error(
-          message || "Login failed."
+          "Account created, but automatic login failed."
         );
       }
 
-      const data = await response.json();
+      const data = await loginResponse.json();
 
       setAuthToken(data.token);
 
@@ -53,7 +77,7 @@ export default function LoginPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Login failed."
+          : "Registration failed."
       );
     } finally {
       setLoading(false);
@@ -70,13 +94,32 @@ export default function LoginPage() {
         </p>
 
         <h1 className="mt-2 text-4xl font-black">
-          Login
+          Create Account
         </h1>
+
+        <p className="mt-3 text-zinc-400">
+          Create an account to join fantasy Pokémon TCG leagues.
+        </p>
 
         <form
           onSubmit={handleSubmit}
           className="mt-8 space-y-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-8"
         >
+          <div>
+            <label className="mb-2 block text-sm font-semibold">
+              Username
+            </label>
+
+            <input
+              value={username}
+              onChange={(e) =>
+                setUsername(e.target.value)
+              }
+              required
+              className="w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none focus:border-yellow-400"
+            />
+          </div>
+
           <div>
             <label className="mb-2 block text-sm font-semibold">
               Email
@@ -104,9 +147,14 @@ export default function LoginPage() {
                 setPassword(e.target.value)
               }
               type="password"
+              minLength={8}
               required
               className="w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none focus:border-yellow-400"
             />
+
+            <p className="mt-2 text-xs text-zinc-500">
+              Minimum 8 characters.
+            </p>
           </div>
 
           {error && (
@@ -118,11 +166,11 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-yellow-400 py-3 font-black text-black disabled:opacity-50"
+            className="w-full rounded-xl bg-yellow-400 py-3 font-black text-black transition hover:bg-yellow-300 disabled:opacity-50"
           >
             {loading
-              ? "Logging in..."
-              : "Login"}
+              ? "Creating Account..."
+              : "Create Account"}
           </button>
         </form>
       </div>

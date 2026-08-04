@@ -88,20 +88,20 @@
     "ExternalId": "3215"
   },
   {
-    "Name": "Cerys Jones",
-    "Country": "US",
-    "SeasonStartingRank": 12,
-    "SeasonPoolOrder": 12,
-    "LimitlessPoints": 158,
-    "ExternalId": "6821"
-  },
-  {
     "Name": "Keito Arai",
     "Country": "JP",
     "SeasonStartingRank": 12,
-    "SeasonPoolOrder": 13,
+    "SeasonPoolOrder": 12,
     "LimitlessPoints": 158,
     "ExternalId": "3536"
+  },
+  {
+    "Name": "Cerys Jones",
+    "Country": "US",
+    "SeasonStartingRank": 12,
+    "SeasonPoolOrder": 13,
+    "LimitlessPoints": 158,
+    "ExternalId": "6821"
   },
   {
     "Name": "Brent Tonisson",
@@ -320,18 +320,10 @@
     "ExternalId": "6869"
   },
   {
-    "Name": "Gustavo Wada",
-    "Country": "BR",
-    "SeasonStartingRank": 41,
-    "SeasonPoolOrder": 41,
-    "LimitlessPoints": 108,
-    "ExternalId": "165"
-  },
-  {
     "Name": "Cedrik B.",
     "Country": "FI",
     "SeasonStartingRank": 41,
-    "SeasonPoolOrder": 42,
+    "SeasonPoolOrder": 41,
     "LimitlessPoints": 108,
     "ExternalId": "7140"
   },
@@ -339,9 +331,17 @@
     "Name": "Kim Pobega",
     "Country": "IT",
     "SeasonStartingRank": 41,
-    "SeasonPoolOrder": 43,
+    "SeasonPoolOrder": 42,
     "LimitlessPoints": 108,
     "ExternalId": "161"
+  },
+  {
+    "Name": "Gustavo Wada",
+    "Country": "BR",
+    "SeasonStartingRank": 41,
+    "SeasonPoolOrder": 43,
+    "LimitlessPoints": 108,
+    "ExternalId": "165"
   },
   {
     "Name": "Theodor M.",
@@ -536,18 +536,10 @@
     "ExternalId": "7245"
   },
   {
-    "Name": "Martin E.",
-    "Country": "US",
-    "SeasonStartingRank": 68,
-    "SeasonPoolOrder": 68,
-    "LimitlessPoints": 90,
-    "ExternalId": "7229"
-  },
-  {
     "Name": "Neddy Kosek",
     "Country": "CZ",
     "SeasonStartingRank": 68,
-    "SeasonPoolOrder": 69,
+    "SeasonPoolOrder": 68,
     "LimitlessPoints": 90,
     "ExternalId": "5165"
   },
@@ -555,9 +547,17 @@
     "Name": "Daniel Powell",
     "Country": "GB",
     "SeasonStartingRank": 68,
-    "SeasonPoolOrder": 70,
+    "SeasonPoolOrder": 69,
     "LimitlessPoints": 90,
     "ExternalId": "4018"
+  },
+  {
+    "Name": "Martin E.",
+    "Country": "US",
+    "SeasonStartingRank": 68,
+    "SeasonPoolOrder": 70,
+    "LimitlessPoints": 90,
+    "ExternalId": "7229"
   },
   {
     "Name": "Fabien Pujol",
@@ -583,22 +583,29 @@
     "LimitlessPoints": 89,
     "ExternalId": "3252"
   },
-  
   {
-    "Name": "Francisco Osorio",
-    "Country": "CL",
+    "Name": "Nicholas Moffitt",
+    "Country": "US",
     "SeasonStartingRank": 74,
-    "SeasonPoolOrder": 75,
+    "SeasonPoolOrder": 74,
     "LimitlessPoints": 88,
-    "ExternalId": "790"
+    "ExternalId": "1630"
   },
   {
     "Name": "Daniel Magda",
     "Country": "CZ",
-    "SeasonStartingRank": 76,
-    "SeasonPoolOrder": 76,
+    "SeasonStartingRank": 74,
+    "SeasonPoolOrder": 75,
     "LimitlessPoints": 88,
     "ExternalId": "6739"
+  },
+  {
+    "Name": "Grant Manley",
+    "Country": "US",
+    "SeasonStartingRank": 77,
+    "SeasonPoolOrder": 76,
+    "LimitlessPoints": 87,
+    "ExternalId": "322"
   },
   {
     "Name": "Riley McKay",
@@ -609,18 +616,10 @@
     "ExternalId": "3995"
   },
   {
-    "Name": "Grant Manley",
-    "Country": "US",
-    "SeasonStartingRank": 77,
-    "SeasonPoolOrder": 78,
-    "LimitlessPoints": 87,
-    "ExternalId": "322"
-  },
-  {
     "Name": "Paulo Ferraz",
     "Country": "BR",
     "SeasonStartingRank": 79,
-    "SeasonPoolOrder": 79,
+    "SeasonPoolOrder": 78,
     "LimitlessPoints": 86,
     "ExternalId": "10878"
   },
@@ -628,7 +627,7 @@
     "Name": "Aarni Karjala",
     "Country": "FI",
     "SeasonStartingRank": 79,
-    "SeasonPoolOrder": 80,
+    "SeasonPoolOrder": 79,
     "LimitlessPoints": 86,
     "ExternalId": "5163"
   },
@@ -636,33 +635,41 @@
     "Name": "Kai Wainwright",
     "Country": "GB",
     "SeasonStartingRank": 81,
-    "SeasonPoolOrder": 81,
+    "SeasonPoolOrder": 80,
     "LimitlessPoints": 85,
     "ExternalId": "3573"
-  },
-  {
-    "Name": "Nicolai Stiborg",
-    "Country": "DK",
-    "SeasonStartingRank": 82,
-    "SeasonPoolOrder": 82,
-    "LimitlessPoints": 84,
-    "ExternalId": "7817"
   },
   {
     "Name": "Matias Matricardi",
     "Country": "AR",
     "SeasonStartingRank": 82,
-    "SeasonPoolOrder": 83,
+    "SeasonPoolOrder": 81,
     "LimitlessPoints": 84,
     "ExternalId": "1198"
+  },
+  {
+    "Name": "Edwyn Mesman",
+    "Country": "NL",
+    "SeasonStartingRank": 82,
+    "SeasonPoolOrder": 82,
+    "LimitlessPoints": 84,
+    "ExternalId": "3538"
   },
   {
     "Name": "Konsta Kallama",
     "Country": "FI",
     "SeasonStartingRank": 82,
-    "SeasonPoolOrder": 84,
+    "SeasonPoolOrder": 83,
     "LimitlessPoints": 84,
     "ExternalId": "1861"
+  },
+  {
+    "Name": "Nicolai Stiborg",
+    "Country": "DK",
+    "SeasonStartingRank": 82,
+    "SeasonPoolOrder": 84,
+    "LimitlessPoints": 84,
+    "ExternalId": "7817"
   },
   {
     "Name": "Aaron Arturo Aguirre Osuna",
@@ -673,18 +680,10 @@
     "ExternalId": "5123"
   },
   {
-    "Name": "Edwyn Mesman",
-    "Country": "NL",
-    "SeasonStartingRank": 82,
-    "SeasonPoolOrder": 86,
-    "LimitlessPoints": 84,
-    "ExternalId": "3538"
-  },
-  {
     "Name": "Rune Heiremans",
     "Country": "BE",
     "SeasonStartingRank": 82,
-    "SeasonPoolOrder": 87,
+    "SeasonPoolOrder": 86,
     "LimitlessPoints": 84,
     "ExternalId": "2905"
   },
@@ -692,7 +691,7 @@
     "Name": "Neo Erlandsson",
     "Country": "US",
     "SeasonStartingRank": 88,
-    "SeasonPoolOrder": 88,
+    "SeasonPoolOrder": 87,
     "LimitlessPoints": 83,
     "ExternalId": "5541"
   },
@@ -700,7 +699,7 @@
     "Name": "Alberto Conti",
     "Country": "IT",
     "SeasonStartingRank": 88,
-    "SeasonPoolOrder": 89,
+    "SeasonPoolOrder": 88,
     "LimitlessPoints": 83,
     "ExternalId": "3541"
   },
@@ -708,47 +707,39 @@
     "Name": "Diego Cassiraga",
     "Country": "AR",
     "SeasonStartingRank": 90,
-    "SeasonPoolOrder": 90,
+    "SeasonPoolOrder": 89,
     "LimitlessPoints": 82,
     "ExternalId": "230"
-  },
-  {
-    "Name": "Christian LaBella",
-    "Country": "CA",
-    "SeasonStartingRank": 90,
-    "SeasonPoolOrder": 91,
-    "LimitlessPoints": 82,
-    "ExternalId": "3670"
-  },
-  {
-    "Name": "Mateusz \u0141aszkiewicz",
-    "Country": "PL",
-    "SeasonStartingRank": 90,
-    "SeasonPoolOrder": 92,
-    "LimitlessPoints": 82,
-    "ExternalId": "3643"
   },
   {
     "Name": "Ted Tobyn",
     "Country": "GB",
     "SeasonStartingRank": 90,
-    "SeasonPoolOrder": 93,
+    "SeasonPoolOrder": 90,
     "LimitlessPoints": 82,
     "ExternalId": "11177"
   },
   {
-    "Name": "Maurycy W.",
+    "Name": "Mateusz \u0141aszkiewicz",
     "Country": "PL",
-    "SeasonStartingRank": 94,
-    "SeasonPoolOrder": 94,
-    "LimitlessPoints": 81,
-    "ExternalId": "11107"
+    "SeasonStartingRank": 90,
+    "SeasonPoolOrder": 91,
+    "LimitlessPoints": 82,
+    "ExternalId": "3643"
+  },
+  {
+    "Name": "Christian LaBella",
+    "Country": "CA",
+    "SeasonStartingRank": 90,
+    "SeasonPoolOrder": 92,
+    "LimitlessPoints": 82,
+    "ExternalId": "3670"
   },
   {
     "Name": "Jonathan Fabrizio Bellucci Lanciano",
     "Country": "AR",
     "SeasonStartingRank": 94,
-    "SeasonPoolOrder": 95,
+    "SeasonPoolOrder": 93,
     "LimitlessPoints": 81,
     "ExternalId": "131"
   },
@@ -756,9 +747,25 @@
     "Name": "Rajveer Singh",
     "Country": "US",
     "SeasonStartingRank": 94,
-    "SeasonPoolOrder": 96,
+    "SeasonPoolOrder": 94,
     "LimitlessPoints": 81,
     "ExternalId": "7706"
+  },
+  {
+    "Name": "Maurycy W.",
+    "Country": "PL",
+    "SeasonStartingRank": 94,
+    "SeasonPoolOrder": 95,
+    "LimitlessPoints": 81,
+    "ExternalId": "11107"
+  },
+  {
+    "Name": "Leonardo Lattanzi",
+    "Country": "IT",
+    "SeasonStartingRank": 97,
+    "SeasonPoolOrder": 96,
+    "LimitlessPoints": 80,
+    "ExternalId": "10107"
   },
   {
     "Name": "Kian Amini",
@@ -777,34 +784,18 @@
     "ExternalId": "3647"
   },
   {
-    "Name": "Leonardo Lattanzi",
-    "Country": "IT",
-    "SeasonStartingRank": 97,
-    "SeasonPoolOrder": 99,
-    "LimitlessPoints": 80,
-    "ExternalId": "10107"
-  },
-  {
-    "Name": "James Kowalski",
-    "Country": "US",
+    "Name": "Paolo Camus",
+    "Country": "FR",
     "SeasonStartingRank": 100,
-    "SeasonPoolOrder": 100,
+    "SeasonPoolOrder": 99,
     "LimitlessPoints": 79,
-    "ExternalId": "5992"
-  },
-  {
-    "Name": "James Kowalski",
-    "Country": "US",
-    "SeasonStartingRank": 101,
-    "SeasonPoolOrder": 101,
-    "LimitlessPoints": 79,
-    "ExternalId": "5992"
+    "ExternalId": "11583"
   },
   {
     "Name": "Julio S\u00E1nchez Rodr\u00EDguez",
     "Country": "ES",
     "SeasonStartingRank": 102,
-    "SeasonPoolOrder": 102,
+    "SeasonPoolOrder": 100,
     "LimitlessPoints": 78,
     "ExternalId": "5937"
   },
@@ -812,7 +803,7 @@
     "Name": "Marco Aurelio Fernandes Garcia",
     "Country": "BR",
     "SeasonStartingRank": 103,
-    "SeasonPoolOrder": 103,
+    "SeasonPoolOrder": 101,
     "LimitlessPoints": 77,
     "ExternalId": "1277"
   },
@@ -820,7 +811,7 @@
     "Name": "Sebastian Lashmet",
     "Country": "US",
     "SeasonStartingRank": 103,
-    "SeasonPoolOrder": 104,
+    "SeasonPoolOrder": 102,
     "LimitlessPoints": 77,
     "ExternalId": "5198"
   },
@@ -828,7 +819,7 @@
     "Name": "Miguel Angel Marin Herrera",
     "Country": "MX",
     "SeasonStartingRank": 105,
-    "SeasonPoolOrder": 105,
+    "SeasonPoolOrder": 103,
     "LimitlessPoints": 76,
     "ExternalId": "9250"
   },
@@ -836,7 +827,7 @@
     "Name": "Vin\u00EDcius Fernandez",
     "Country": "BR",
     "SeasonStartingRank": 106,
-    "SeasonPoolOrder": 106,
+    "SeasonPoolOrder": 104,
     "LimitlessPoints": 75,
     "ExternalId": "5034"
   },
@@ -844,7 +835,7 @@
     "Name": "Tomasz C.",
     "Country": "PL",
     "SeasonStartingRank": 106,
-    "SeasonPoolOrder": 107,
+    "SeasonPoolOrder": 105,
     "LimitlessPoints": 75,
     "ExternalId": "7366"
   },
@@ -852,7 +843,7 @@
     "Name": "Ethan C.",
     "Country": "US",
     "SeasonStartingRank": 106,
-    "SeasonPoolOrder": 108,
+    "SeasonPoolOrder": 106,
     "LimitlessPoints": 75,
     "ExternalId": "7151"
   },
@@ -860,7 +851,7 @@
     "Name": "Antoni M.",
     "Country": "GB",
     "SeasonStartingRank": 109,
-    "SeasonPoolOrder": 109,
+    "SeasonPoolOrder": 107,
     "LimitlessPoints": 74,
     "ExternalId": "8395"
   },
@@ -868,7 +859,7 @@
     "Name": "Miloslav Posledni",
     "Country": "CZ",
     "SeasonStartingRank": 110,
-    "SeasonPoolOrder": 110,
+    "SeasonPoolOrder": 108,
     "LimitlessPoints": 73,
     "ExternalId": "1188"
   },
@@ -876,7 +867,7 @@
     "Name": "C\u00E1ssio Moraes",
     "Country": "BR",
     "SeasonStartingRank": 110,
-    "SeasonPoolOrder": 111,
+    "SeasonPoolOrder": 109,
     "LimitlessPoints": 73,
     "ExternalId": "10881"
   },
@@ -884,7 +875,7 @@
     "Name": "Julian Gort-Barry",
     "Country": "CA",
     "SeasonStartingRank": 110,
-    "SeasonPoolOrder": 112,
+    "SeasonPoolOrder": 110,
     "LimitlessPoints": 73,
     "ExternalId": "5215"
   },
@@ -892,7 +883,7 @@
     "Name": "Bradley Curcio",
     "Country": "US",
     "SeasonStartingRank": 110,
-    "SeasonPoolOrder": 113,
+    "SeasonPoolOrder": 111,
     "LimitlessPoints": 73,
     "ExternalId": "9763"
   },
@@ -900,7 +891,7 @@
     "Name": "Carson Washer",
     "Country": "US",
     "SeasonStartingRank": 110,
-    "SeasonPoolOrder": 114,
+    "SeasonPoolOrder": 112,
     "LimitlessPoints": 73,
     "ExternalId": "6819"
   },
@@ -908,7 +899,7 @@
     "Name": "Owyn Kamerman",
     "Country": "NL",
     "SeasonStartingRank": 110,
-    "SeasonPoolOrder": 115,
+    "SeasonPoolOrder": 113,
     "LimitlessPoints": 73,
     "ExternalId": "1738"
   },
@@ -916,7 +907,7 @@
     "Name": "Rowan Stavenow",
     "Country": "CA",
     "SeasonStartingRank": 116,
-    "SeasonPoolOrder": 116,
+    "SeasonPoolOrder": 114,
     "LimitlessPoints": 72,
     "ExternalId": "2532"
   },
@@ -924,7 +915,7 @@
     "Name": "Jon Eng",
     "Country": "US",
     "SeasonStartingRank": 117,
-    "SeasonPoolOrder": 117,
+    "SeasonPoolOrder": 115,
     "LimitlessPoints": 70,
     "ExternalId": "868"
   },
@@ -932,7 +923,7 @@
     "Name": "Stephen Lowe",
     "Country": "US",
     "SeasonStartingRank": 117,
-    "SeasonPoolOrder": 118,
+    "SeasonPoolOrder": 116,
     "LimitlessPoints": 70,
     "ExternalId": "2298"
   },
@@ -940,7 +931,7 @@
     "Name": "Frank Luciano",
     "Country": "US",
     "SeasonStartingRank": 117,
-    "SeasonPoolOrder": 119,
+    "SeasonPoolOrder": 117,
     "LimitlessPoints": 70,
     "ExternalId": "5436"
   },
@@ -948,7 +939,7 @@
     "Name": "Hale Obernolte",
     "Country": "US",
     "SeasonStartingRank": 117,
-    "SeasonPoolOrder": 120,
+    "SeasonPoolOrder": 118,
     "LimitlessPoints": 70,
     "ExternalId": "946"
   },
@@ -956,31 +947,15 @@
     "Name": "Christian D\u0027Onofrio",
     "Country": "IT",
     "SeasonStartingRank": 117,
-    "SeasonPoolOrder": 121,
+    "SeasonPoolOrder": 119,
     "LimitlessPoints": 70,
     "ExternalId": "2247"
-  },
-  {
-    "Name": "Juho Kallama",
-    "Country": "FI",
-    "SeasonStartingRank": 122,
-    "SeasonPoolOrder": 122,
-    "LimitlessPoints": 69,
-    "ExternalId": "961"
-  },
-  {
-    "Name": "Ross Cawthon",
-    "Country": "US",
-    "SeasonStartingRank": 122,
-    "SeasonPoolOrder": 123,
-    "LimitlessPoints": 69,
-    "ExternalId": "173"
   },
   {
     "Name": "Ian Robb",
     "Country": "US",
     "SeasonStartingRank": 122,
-    "SeasonPoolOrder": 124,
+    "SeasonPoolOrder": 120,
     "LimitlessPoints": 69,
     "ExternalId": "864"
   },
@@ -988,23 +963,47 @@
     "Name": "Maciej Chojnacki",
     "Country": "PL",
     "SeasonStartingRank": 122,
-    "SeasonPoolOrder": 125,
+    "SeasonPoolOrder": 121,
     "LimitlessPoints": 69,
     "ExternalId": "5183"
   },
   {
+    "Name": "Ross Cawthon",
+    "Country": "US",
+    "SeasonStartingRank": 122,
+    "SeasonPoolOrder": 122,
+    "LimitlessPoints": 69,
+    "ExternalId": "173"
+  },
+  {
     "Name": "Juho Kallama",
     "Country": "FI",
-    "SeasonStartingRank": 126,
-    "SeasonPoolOrder": 126,
+    "SeasonStartingRank": 122,
+    "SeasonPoolOrder": 123,
     "LimitlessPoints": 69,
     "ExternalId": "961"
+  },
+  {
+    "Name": "Eisu Y.",
+    "Country": "JP",
+    "SeasonStartingRank": 126,
+    "SeasonPoolOrder": 124,
+    "LimitlessPoints": 69,
+    "ExternalId": "10101"
+  },
+  {
+    "Name": "Eder Jarillo Soto",
+    "Country": "MX",
+    "SeasonStartingRank": 127,
+    "SeasonPoolOrder": 125,
+    "LimitlessPoints": 68,
+    "ExternalId": "618"
   },
   {
     "Name": "Nicolas Darge",
     "Country": "DE",
     "SeasonStartingRank": 127,
-    "SeasonPoolOrder": 127,
+    "SeasonPoolOrder": 126,
     "LimitlessPoints": 68,
     "ExternalId": "6239"
   },
@@ -1012,23 +1011,15 @@
     "Name": "Brando Longino",
     "Country": "IT",
     "SeasonStartingRank": 127,
-    "SeasonPoolOrder": 128,
+    "SeasonPoolOrder": 127,
     "LimitlessPoints": 68,
     "ExternalId": "5830"
-  },
-  {
-    "Name": "Eder Jarillo Soto",
-    "Country": "MX",
-    "SeasonStartingRank": 127,
-    "SeasonPoolOrder": 129,
-    "LimitlessPoints": 68,
-    "ExternalId": "618"
   },
   {
     "Name": "Grant Shen",
     "Country": "US",
     "SeasonStartingRank": 130,
-    "SeasonPoolOrder": 130,
+    "SeasonPoolOrder": 128,
     "LimitlessPoints": 67,
     "ExternalId": "3723"
   },
@@ -1036,9 +1027,25 @@
     "Name": "Charlie Lockyer",
     "Country": "US",
     "SeasonStartingRank": 130,
-    "SeasonPoolOrder": 131,
+    "SeasonPoolOrder": 129,
     "LimitlessPoints": 67,
     "ExternalId": "579"
+  },
+  {
+    "Name": "Cristiano Castaneda",
+    "Country": "US",
+    "SeasonStartingRank": 132,
+    "SeasonPoolOrder": 130,
+    "LimitlessPoints": 66,
+    "ExternalId": "12069"
+  },
+  {
+    "Name": "Zach Cohen",
+    "Country": "US",
+    "SeasonStartingRank": 132,
+    "SeasonPoolOrder": 131,
+    "LimitlessPoints": 66,
+    "ExternalId": "3593"
   },
   {
     "Name": "Truwin Tran",
@@ -1049,26 +1056,10 @@
     "ExternalId": "11262"
   },
   {
-    "Name": "Zach Cohen",
-    "Country": "US",
-    "SeasonStartingRank": 132,
-    "SeasonPoolOrder": 133,
-    "LimitlessPoints": 66,
-    "ExternalId": "3593"
-  },
-  {
-    "Name": "Cristiano Castaneda",
-    "Country": "US",
-    "SeasonStartingRank": 132,
-    "SeasonPoolOrder": 134,
-    "LimitlessPoints": 66,
-    "ExternalId": "12069"
-  },
-  {
     "Name": "Juan Andree Mej\u00EDa",
     "Country": "CL",
     "SeasonStartingRank": 135,
-    "SeasonPoolOrder": 135,
+    "SeasonPoolOrder": 133,
     "LimitlessPoints": 65,
     "ExternalId": "2802"
   },
@@ -1076,7 +1067,7 @@
     "Name": "Luka L.",
     "Country": "FR",
     "SeasonStartingRank": 135,
-    "SeasonPoolOrder": 136,
+    "SeasonPoolOrder": 134,
     "LimitlessPoints": 65,
     "ExternalId": "6752"
   },
@@ -1084,31 +1075,31 @@
     "Name": "Elmar Tresp",
     "Country": "DE",
     "SeasonStartingRank": 135,
-    "SeasonPoolOrder": 137,
+    "SeasonPoolOrder": 135,
     "LimitlessPoints": 65,
     "ExternalId": "4027"
-  },
-  {
-    "Name": "Henry Brand",
-    "Country": "AU",
-    "SeasonStartingRank": 138,
-    "SeasonPoolOrder": 138,
-    "LimitlessPoints": 64,
-    "ExternalId": "1105"
   },
   {
     "Name": "Ethan Lin",
     "Country": "US",
     "SeasonStartingRank": 138,
-    "SeasonPoolOrder": 139,
+    "SeasonPoolOrder": 136,
     "LimitlessPoints": 64,
     "ExternalId": "9780"
+  },
+  {
+    "Name": "Henry Brand",
+    "Country": "AU",
+    "SeasonStartingRank": 138,
+    "SeasonPoolOrder": 137,
+    "LimitlessPoints": 64,
+    "ExternalId": "1105"
   },
   {
     "Name": "Daichi Shimada",
     "Country": "JP",
     "SeasonStartingRank": 138,
-    "SeasonPoolOrder": 140,
+    "SeasonPoolOrder": 138,
     "LimitlessPoints": 64,
     "ExternalId": "1789"
   },
@@ -1116,7 +1107,7 @@
     "Name": "Benjamin Hebert",
     "Country": "CA",
     "SeasonStartingRank": 138,
-    "SeasonPoolOrder": 141,
+    "SeasonPoolOrder": 139,
     "LimitlessPoints": 64,
     "ExternalId": "6729"
   },
@@ -1124,7 +1115,7 @@
     "Name": "Yihao Chen",
     "Country": "US",
     "SeasonStartingRank": 142,
-    "SeasonPoolOrder": 142,
+    "SeasonPoolOrder": 140,
     "LimitlessPoints": 63,
     "ExternalId": "7208"
   },
@@ -1132,7 +1123,7 @@
     "Name": "Aurora Viets",
     "Country": "US",
     "SeasonStartingRank": 143,
-    "SeasonPoolOrder": 143,
+    "SeasonPoolOrder": 141,
     "LimitlessPoints": 62,
     "ExternalId": "3744"
   },
@@ -1140,7 +1131,7 @@
     "Name": "Fabio Battistella",
     "Country": "IT",
     "SeasonStartingRank": 143,
-    "SeasonPoolOrder": 144,
+    "SeasonPoolOrder": 142,
     "LimitlessPoints": 62,
     "ExternalId": "3914"
   },
@@ -1148,31 +1139,15 @@
     "Name": "Victor de Velasco",
     "Country": "MX",
     "SeasonStartingRank": 143,
-    "SeasonPoolOrder": 145,
+    "SeasonPoolOrder": 143,
     "LimitlessPoints": 62,
     "ExternalId": "1374"
-  },
-  {
-    "Name": "Charles R.",
-    "Country": "US",
-    "SeasonStartingRank": 146,
-    "SeasonPoolOrder": 146,
-    "LimitlessPoints": 61,
-    "ExternalId": "7789"
-  },
-  {
-    "Name": "Dalton Acchetta",
-    "Country": "BR",
-    "SeasonStartingRank": 146,
-    "SeasonPoolOrder": 147,
-    "LimitlessPoints": 61,
-    "ExternalId": "651"
   },
   {
     "Name": "Joshua Vanoverschelde",
     "Country": "BE",
     "SeasonStartingRank": 146,
-    "SeasonPoolOrder": 148,
+    "SeasonPoolOrder": 144,
     "LimitlessPoints": 61,
     "ExternalId": "2010"
   },
@@ -1180,16 +1155,48 @@
     "Name": "Shun Takemasa",
     "Country": "US",
     "SeasonStartingRank": 146,
-    "SeasonPoolOrder": 149,
+    "SeasonPoolOrder": 145,
     "LimitlessPoints": 61,
     "ExternalId": "8651"
+  },
+  {
+    "Name": "Dalton Acchetta",
+    "Country": "BR",
+    "SeasonStartingRank": 146,
+    "SeasonPoolOrder": 146,
+    "LimitlessPoints": 61,
+    "ExternalId": "651"
+  },
+  {
+    "Name": "Charles R.",
+    "Country": "US",
+    "SeasonStartingRank": 146,
+    "SeasonPoolOrder": 147,
+    "LimitlessPoints": 61,
+    "ExternalId": "7789"
   },
   {
     "Name": "Gregory V.",
     "Country": "FR",
     "SeasonStartingRank": 150,
-    "SeasonPoolOrder": 150,
+    "SeasonPoolOrder": 148,
     "LimitlessPoints": 60,
     "ExternalId": "6777"
+  },
+  {
+    "Name": "Ethan Wilde",
+    "Country": "GB",
+    "SeasonStartingRank": 151,
+    "SeasonPoolOrder": 149,
+    "LimitlessPoints": 60,
+    "ExternalId": "4260"
+  },
+  {
+    "Name": "Owen Dalgard",
+    "Country": "US",
+    "SeasonStartingRank": 151,
+    "SeasonPoolOrder": 150,
+    "LimitlessPoints": 60,
+    "ExternalId": "6882"
   }
 ]

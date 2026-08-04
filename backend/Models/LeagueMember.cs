@@ -13,5 +13,10 @@ public class LeagueMember
     [JsonIgnore]
     public League League { get; set; } = null!;
 
+    public int? UserId { get; set; }
+
+    [JsonIgnore]
+    public User? User { get; set; }
+
     public bool IsCommissioner { get; set; }
 }

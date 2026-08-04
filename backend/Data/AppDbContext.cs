@@ -28,5 +28,32 @@ public class AppDbContext : DbContext
     public DbSet<EventResult> EventResults => Set<EventResult>();
 
     public DbSet<Matchup> Matchups => Set<Matchup>();
+
+    public DbSet<User> Users => Set<User>();
+
+    public DbSet<RegionalLineupEntry> RegionalLineupEntries =>
+    Set<RegionalLineupEntry>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    base.OnModelCreating(modelBuilder);
+
+    modelBuilder.Entity<RegionalLineupEntry>()
+        .HasIndex(entry => new
+        {
+            entry.LeagueMemberId,
+            entry.RegionalEventId,
+            entry.PlayerId
+        })
+        .IsUnique();
+
+    modelBuilder.Entity<User>()
+    .HasIndex(user => user.Email)
+    .IsUnique();
+
+    modelBuilder.Entity<User>()
+    .HasIndex(user => user.Username)
+    .IsUnique();
+}
 }
 

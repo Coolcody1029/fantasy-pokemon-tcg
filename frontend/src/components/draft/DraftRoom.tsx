@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import {
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 
 import DraftHeader from "./DraftHeader";
 import AvailablePlayers from "./AvailablePlayers";
 import DraftBoard from "./DraftBoard";
 import DraftRosters from "./DraftRosters";
+
+import { apiFetch } from "@/lib/api";
 
 import type {
   Player,
@@ -23,118 +28,260 @@ type DraftResponse = {
   picks: DraftPick[];
 };
 
+type MyLeagueTeam = {
+  teamId: number;
+  teamName: string;
+  isCommissioner: boolean;
+};
+
 export default function DraftRoom() {
   const searchParams = useSearchParams();
-  const leagueId = searchParams.get("leagueId");
+  const router = useRouter();
 
-  const [league, setLeague] = useState<League | null>(null);
-  const [draftId, setDraftId] = useState<number | null>(null);
-  const [isComplete, setIsComplete] = useState(false);
-  const [completingDraft, setCompletingDraft] = useState(false);
+  const leagueId =
+    searchParams.get("leagueId");
 
-  const [teams, setTeams] = useState<FantasyTeam[]>([]);
-  const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
-  const [draftPicks, setDraftPicks] = useState<DraftPick[]>([]);
+  const [league, setLeague] =
+    useState<League | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [savingPick, setSavingPick] = useState(false);
-  const [error, setError] = useState("");
+  const [draftId, setDraftId] =
+    useState<number | null>(null);
+
+  const [isComplete, setIsComplete] =
+    useState(false);
+
+  const [
+    completingDraft,
+    setCompletingDraft,
+  ] = useState(false);
+
+  const [teams, setTeams] =
+    useState<FantasyTeam[]>([]);
+
+  const [
+    availablePlayers,
+    setAvailablePlayers,
+  ] = useState<Player[]>([]);
+
+  const [
+    draftPicks,
+    setDraftPicks,
+  ] = useState<DraftPick[]>([]);
+
+  const [myTeam, setMyTeam] =
+    useState<MyLeagueTeam | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [savingPick, setSavingPick] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
     async function loadDraft() {
       if (!leagueId) {
-        setError("No league was selected.");
+        setError(
+          "No league was selected."
+        );
+
         setLoading(false);
         return;
       }
 
       try {
-        const leagueResponse = await fetch(
-          `http://localhost:5255/api/leagues/${leagueId}`
-        );
+        /*
+         * Load the league.
+         */
+        const leagueResponse =
+          await fetch(
+            `http://localhost:5255/api/leagues/${leagueId}`
+          );
 
         if (!leagueResponse.ok) {
-          throw new Error("Could not load league.");
+          throw new Error(
+            "Could not load league."
+          );
         }
 
-        const leagueData: League = await leagueResponse.json();
+        const leagueData: League =
+          await leagueResponse.json();
 
-        const leagueTeams: FantasyTeam[] = leagueData.members.map(
-          (member) => ({
-            id: member.id,
-            name: member.teamName,
-          })
-        );
+        const leagueTeams: FantasyTeam[] =
+          leagueData.members.map(
+            (member) => ({
+              id: member.id,
+              name: member.teamName,
+            })
+          );
 
         setLeague(leagueData);
         setTeams(leagueTeams);
 
-        const playersResponse = await fetch(
-          "http://localhost:5255/api/players"
-        );
+        /*
+         * Load the logged-in user's team.
+         */
+        const myTeamResponse =
+          await apiFetch(
+            `/api/leagues/${leagueId}/me`
+          );
 
-        if (!playersResponse.ok) {
-          throw new Error("Could not load players.");
+        if (
+          myTeamResponse.status === 401
+        ) {
+          router.push("/login");
+          return;
         }
 
-        const allPlayers: Player[] = await playersResponse.json();
+        if (!myTeamResponse.ok) {
+          throw new Error(
+            "You are not a member of this league."
+          );
+        }
 
-        let draftResponse = await fetch(
-          `http://localhost:5255/api/drafts/league/${leagueId}`
-        );
+        const myTeamData: MyLeagueTeam =
+          await myTeamResponse.json();
 
-        if (draftResponse.status === 404) {
-          const createResponse = await fetch(
-            `http://localhost:5255/api/drafts/league/${leagueId}`,
-            {
-              method: "POST",
-            }
+        setMyTeam(myTeamData);
+
+        /*
+         * Load available players.
+         */
+        const playersResponse =
+          await fetch(
+            "http://localhost:5255/api/players"
           );
 
-          if (!createResponse.ok) {
-            const message = await createResponse.text();
-            throw new Error(message || "Could not create draft.");
-          }
+        if (!playersResponse.ok) {
+          throw new Error(
+            "Could not load players."
+          );
+        }
 
-          await createResponse.json();
+        const allPlayers: Player[] =
+          await playersResponse.json();
 
-          draftResponse = await fetch(
+        /*
+         * Load existing draft.
+         */
+        let draftResponse =
+          await fetch(
             `http://localhost:5255/api/drafts/league/${leagueId}`
           );
+
+        /*
+         * No draft exists yet.
+         *
+         * Only commissioner will be
+         * allowed by the backend to
+         * create one.
+         */
+        if (
+          draftResponse.status === 404
+        ) {
+          const createResponse =
+            await apiFetch(
+              `/api/drafts/league/${leagueId}`,
+              {
+                method: "POST",
+              }
+            );
+
+          if (
+            createResponse.status === 401
+          ) {
+            router.push("/login");
+            return;
+          }
+
+          if (
+            createResponse.status === 403
+          ) {
+            throw new Error(
+              "The commissioner has not started the draft yet."
+            );
+          }
+
+          if (!createResponse.ok) {
+            const message =
+              await createResponse.text();
+
+            throw new Error(
+              message ||
+                "Could not create draft."
+            );
+          }
+
+          /*
+           * Reload the newly-created draft
+           * so we get picks in the normal
+           * DraftResponse shape.
+           */
+          draftResponse =
+            await fetch(
+              `http://localhost:5255/api/drafts/league/${leagueId}`
+            );
         }
 
         if (!draftResponse.ok) {
-          throw new Error("Could not load draft.");
+          throw new Error(
+            "Could not load draft."
+          );
         }
 
-        const draftData: DraftResponse = await draftResponse.json();
+        const draftData: DraftResponse =
+          await draftResponse.json();
 
-        setDraftId(draftData.id);
-        setDraftPicks(draftData.picks);
-        setIsComplete(draftData.isComplete);
-
-        const draftedPlayerIds = new Set(
-          draftData.picks.map((pick) => pick.player.id)
+        setDraftId(
+          draftData.id
         );
 
-        const remainingPlayers = allPlayers.filter(
-          (player) => !draftedPlayerIds.has(player.id)
+        setDraftPicks(
+          draftData.picks
         );
 
-        setAvailablePlayers(remainingPlayers);
+        setIsComplete(
+          draftData.isComplete
+        );
+
+        /*
+         * Remove already drafted players
+         * from the available pool.
+         */
+        const draftedPlayerIds =
+          new Set(
+            draftData.picks.map(
+              (pick) =>
+                pick.player.id
+            )
+          );
+
+        const remainingPlayers =
+          allPlayers.filter(
+            (player) =>
+              !draftedPlayerIds.has(
+                player.id
+              )
+          );
+
+        setAvailablePlayers(
+          remainingPlayers
+        );
       } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Could not load the draft.");
-        }
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not load the draft."
+        );
       } finally {
         setLoading(false);
       }
     }
 
     loadDraft();
-  }, [leagueId]);
+  }, [leagueId, router]);
 
   if (loading) {
     return (
@@ -150,13 +297,32 @@ export default function DraftRoom() {
     return (
       <div className="mx-auto max-w-7xl px-6 py-10">
         <div className="rounded-2xl border border-red-900 bg-red-950/30 p-6 text-red-400">
-          {error}
+          <p>{error}</p>
+
+          {leagueId && (
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  `/league/${leagueId}`
+                )
+              }
+              className="mt-5 rounded-xl border border-red-800 px-5 py-2 font-bold text-white transition hover:border-red-500"
+            >
+              Back to League
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
-  if (!league || !draftId || teams.length === 0) {
+  if (
+    !league ||
+    !draftId ||
+    teams.length === 0 ||
+    !myTeam
+  ) {
     return (
       <div className="mx-auto max-w-7xl px-6 py-10">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center text-zinc-400">
@@ -166,33 +332,65 @@ export default function DraftRoom() {
     );
   }
 
-  const pickNumber = draftPicks.length + 1;
+  const pickNumber =
+    draftPicks.length + 1;
 
   const round =
-    Math.floor(draftPicks.length / teams.length) + 1;
+    Math.floor(
+      draftPicks.length /
+        teams.length
+    ) + 1;
 
   function getCurrentTeam() {
-    const pickIndex = draftPicks.length;
+    const pickIndex =
+      draftPicks.length;
 
     const currentRound =
-      Math.floor(pickIndex / teams.length) + 1;
+      Math.floor(
+        pickIndex /
+          teams.length
+      ) + 1;
 
     const positionInRound =
-      pickIndex % teams.length;
+      pickIndex %
+      teams.length;
 
-    if (currentRound % 2 === 1) {
-      return teams[positionInRound];
+    if (
+      currentRound % 2 === 1
+    ) {
+      return teams[
+        positionInRound
+      ];
     }
 
     return teams[
-      teams.length - 1 - positionInRound
+      teams.length -
+        1 -
+        positionInRound
     ];
   }
 
-  const currentTeam = getCurrentTeam();
+  const currentTeam =
+    getCurrentTeam();
 
-  async function handleDraft(player: Player) {
-    if (savingPick || isComplete) {
+  /*
+   * Important:
+   *
+   * Current draft team must match
+   * the logged-in user's fantasy team.
+   */
+  const isMyTurn =
+    currentTeam.id ===
+    myTeam.teamId;
+
+  async function handleDraft(
+    player: Player
+  ) {
+    if (
+      savingPick ||
+      isComplete ||
+      !isMyTurn
+    ) {
       return;
     }
 
@@ -200,60 +398,92 @@ export default function DraftRoom() {
     setError("");
 
     try {
-      const response = await fetch(
-        `http://localhost:5255/api/drafts/${draftId}/pick`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            playerId: player.id,
-          }),
-        }
-      );
+      const response =
+        await apiFetch(
+          `/api/drafts/${draftId}/pick`,
+          {
+            method: "POST",
 
-      if (!response.ok) {
-        const message = await response.text();
+            body: JSON.stringify({
+              playerId:
+                player.id,
+            }),
+          }
+        );
+
+      if (
+        response.status === 401
+      ) {
+        router.push("/login");
+        return;
+      }
+
+      if (
+        response.status === 403
+      ) {
+        const message =
+          await response.text();
 
         throw new Error(
-          message || "Could not save draft pick."
+          message ||
+            "It is not your turn."
+        );
+      }
+
+      if (!response.ok) {
+        const message =
+          await response.text();
+
+        throw new Error(
+          message ||
+            "Could not save draft pick."
         );
       }
 
       const savedPick: DraftPick =
         await response.json();
 
-      setDraftPicks((previous) => [
-        ...previous,
-        savedPick,
-      ]);
+      setDraftPicks(
+        (previous) => [
+          ...previous,
+          savedPick,
+        ]
+      );
 
-      setAvailablePlayers((previous) =>
-        previous.filter(
-          (availablePlayer) =>
-            availablePlayer.id !== player.id
-        )
+      setAvailablePlayers(
+        (previous) =>
+          previous.filter(
+            (
+              availablePlayer
+            ) =>
+              availablePlayer.id !==
+              player.id
+          )
       );
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Could not save draft pick.");
-      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not save draft pick."
+      );
     } finally {
       setSavingPick(false);
     }
   }
 
   async function handleCompleteDraft() {
-    if (!draftId || draftPicks.length === 0) {
+    if (
+      !draftId ||
+      draftPicks.length === 0 ||
+      !myTeam.isCommissioner
+    ) {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to complete the draft? This will lock the draft and create the season rosters."
-    );
+    const confirmed =
+      window.confirm(
+        "Are you sure you want to complete the draft? This will lock the draft and create the season rosters."
+      );
 
     if (!confirmed) {
       return;
@@ -263,28 +493,46 @@ export default function DraftRoom() {
     setError("");
 
     try {
-      const response = await fetch(
-        `http://localhost:5255/api/drafts/${draftId}/complete`,
-        {
-          method: "POST",
-        }
-      );
+      const response =
+        await apiFetch(
+          `/api/drafts/${draftId}/complete`,
+          {
+            method: "POST",
+          }
+        );
+
+      if (
+        response.status === 401
+      ) {
+        router.push("/login");
+        return;
+      }
+
+      if (
+        response.status === 403
+      ) {
+        throw new Error(
+          "Only the league commissioner can complete the draft."
+        );
+      }
 
       if (!response.ok) {
-        const message = await response.text();
+        const message =
+          await response.text();
 
         throw new Error(
-          message || "Could not complete the draft."
+          message ||
+            "Could not complete the draft."
         );
       }
 
       setIsComplete(true);
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Could not complete the draft.");
-      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not complete the draft."
+      );
     } finally {
       setCompletingDraft(false);
     }
@@ -292,6 +540,7 @@ export default function DraftRoom() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-10">
+      {/* Header */}
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
@@ -299,32 +548,78 @@ export default function DraftRoom() {
           </p>
 
           <h1 className="mt-1 text-2xl font-black">
-            {isComplete ? "Draft Complete" : "Live Draft"}
+            {isComplete
+              ? "Draft Complete"
+              : "Live Draft"}
           </h1>
+
+          <p className="mt-2 text-sm text-zinc-500">
+            You are drafting as{" "}
+            <span className="font-bold text-white">
+              {myTeam.teamName}
+            </span>
+          </p>
         </div>
 
-        {!isComplete && (
-          <button
-            onClick={handleCompleteDraft}
-            disabled={
-              completingDraft ||
-              draftPicks.length === 0
-            }
-            className="rounded-xl border border-yellow-400 px-5 py-3 font-bold text-yellow-400 transition hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {completingDraft
-              ? "Completing..."
-              : "Complete Draft"}
-          </button>
-        )}
+        {!isComplete &&
+          myTeam.isCommissioner && (
+            <button
+              type="button"
+              onClick={
+                handleCompleteDraft
+              }
+              disabled={
+                completingDraft ||
+                draftPicks.length ===
+                  0
+              }
+              className="rounded-xl border border-yellow-400 px-5 py-3 font-bold text-yellow-400 transition hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {completingDraft
+                ? "Completing..."
+                : "Complete Draft"}
+            </button>
+          )}
       </div>
 
+      {/* Current Pick */}
       {!isComplete && (
-        <DraftHeader
-          round={round}
-          pickNumber={pickNumber}
-          teamName={currentTeam.name}
-        />
+        <>
+          <DraftHeader
+            round={round}
+            pickNumber={
+              pickNumber
+            }
+            teamName={
+              currentTeam.name
+            }
+          />
+
+          <div
+            className={`mt-4 rounded-xl border p-4 ${
+              isMyTurn
+                ? "border-green-900 bg-green-950/30 text-green-400"
+                : "border-zinc-800 bg-zinc-900 text-zinc-400"
+            }`}
+          >
+            {isMyTurn ? (
+              <p className="font-bold">
+                Your pick — select a
+                player below.
+              </p>
+            ) : (
+              <p>
+                Waiting for{" "}
+                <span className="font-bold text-white">
+                  {
+                    currentTeam.name
+                  }
+                </span>{" "}
+                to make their pick.
+              </p>
+            )}
+          </div>
+        </>
       )}
 
       {error && (
@@ -342,14 +637,39 @@ export default function DraftRoom() {
               </p>
 
               <p className="mt-2 text-zinc-500">
-                Season rosters have been created.
+                Season rosters
+                have been created.
               </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    `/league/${league.id}`
+                  )
+                }
+                className="mt-6 rounded-xl bg-yellow-400 px-6 py-3 font-bold text-black transition hover:bg-yellow-300"
+              >
+                Back to League
+              </button>
             </div>
           ) : (
-            <AvailablePlayers
-              players={availablePlayers}
-              onDraft={handleDraft}
-            />
+            <div
+              className={
+                !isMyTurn
+                  ? "pointer-events-none opacity-50"
+                  : ""
+              }
+            >
+              <AvailablePlayers
+                players={
+                  availablePlayers
+                }
+                onDraft={
+                  handleDraft
+                }
+              />
+            </div>
           )}
 
           {savingPick && (
@@ -360,7 +680,11 @@ export default function DraftRoom() {
         </div>
 
         <div>
-          <DraftBoard picks={draftPicks} />
+          <DraftBoard
+            picks={
+              draftPicks
+            }
+          />
         </div>
       </div>
 

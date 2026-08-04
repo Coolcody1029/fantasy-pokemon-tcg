@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
+import { apiFetch } from "@/lib/api";
 
 export default function JoinLeaguePage() {
   const router = useRouter();
@@ -19,8 +20,8 @@ export default function JoinLeaguePage() {
     setError("");
 
     try {
-      const response = await fetch(
-        "http://localhost:5255/api/leagues/join",
+      const response = await apiFetch(
+  "/api/leagues/join",
         {
           method: "POST",
           headers: {
