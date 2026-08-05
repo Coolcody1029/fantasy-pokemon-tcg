@@ -667,7 +667,7 @@ export default function DraftRoom() {
     if (
       !draftId ||
       draftPicks.length === 0 ||
-      !myTeam.isCommissioner
+      !myTeam?.isCommissioner
     ) {
       return;
     }
