@@ -19,11 +19,36 @@ public class DraftsController : ControllerBase
     }
 
     /*
-     * Anyone can read the draft state.
+     * Only league members can view
+     * the draft state.
      */
+    [Authorize]
     [HttpGet("league/{leagueId:int}")]
-    public async Task<ActionResult> GetDraft(int leagueId)
+    public async Task<ActionResult> GetDraft(
+        int leagueId)
     {
+        var userId = GetCurrentUserId();
+
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        var isLeagueMember =
+            await _context.LeagueMembers
+                .AnyAsync(member =>
+                    member.LeagueId == leagueId &&
+                    member.UserId == userId.Value
+                );
+
+        if (!isLeagueMember)
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "You are not a member of this league."
+            );
+        }
+
         var draft = await _context.Drafts
             .Include(d => d.Picks)
                 .ThenInclude(p => p.Player)
@@ -35,7 +60,9 @@ public class DraftsController : ControllerBase
 
         if (draft == null)
         {
-            return NotFound();
+            return NotFound(
+                "Draft not found."
+            );
         }
 
         return Ok(new
@@ -46,7 +73,9 @@ public class DraftsController : ControllerBase
             draft.CreatedAt,
 
             Picks = draft.Picks
-                .OrderBy(p => p.PickNumber)
+                .OrderBy(p =>
+                    p.PickNumber
+                )
                 .Select(p => new
                 {
                     p.Id,
@@ -65,8 +94,11 @@ public class DraftsController : ControllerBase
 
                     Team = new
                     {
-                        Id = p.LeagueMember.Id,
-                        Name = p.LeagueMember.TeamName
+                        Id =
+                            p.LeagueMember.Id,
+
+                        Name =
+                            p.LeagueMember.TeamName
                     }
                 })
         });
@@ -101,11 +133,13 @@ public class DraftsController : ControllerBase
             );
         }
 
-        var commissioner = league.Members
-            .FirstOrDefault(member =>
-                member.UserId == userId.Value &&
-                member.IsCommissioner
-            );
+        var commissioner =
+            league.Members
+                .FirstOrDefault(member =>
+                    member.UserId ==
+                        userId.Value &&
+                    member.IsCommissioner
+                );
 
         if (commissioner == null)
         {
@@ -134,10 +168,12 @@ public class DraftsController : ControllerBase
             return Ok(existingDraft);
         }
 
-        var draft = new Draft
-        {
-            LeagueId = leagueId
-        };
+        var draft =
+            new Draft
+            {
+                LeagueId =
+                    leagueId
+            };
 
         _context.Drafts.Add(
             draft
@@ -171,11 +207,15 @@ public class DraftsController : ControllerBase
             return Unauthorized();
         }
 
-        var draft = await _context.Drafts
-            .Include(d => d.Picks)
-            .FirstOrDefaultAsync(d =>
-                d.Id == draftId
-            );
+        var draft =
+            await _context.Drafts
+                .Include(d =>
+                    d.Picks
+                )
+                .FirstOrDefaultAsync(d =>
+                    d.Id ==
+                    draftId
+                );
 
         if (draft == null)
         {
@@ -219,13 +259,15 @@ public class DraftsController : ControllerBase
         var existingRosterPlayers =
             await _context.RosterPlayers
                 .Where(r =>
-                    r.LeagueMember.LeagueId ==
+                    r.LeagueMember
+                        .LeagueId ==
                     draft.LeagueId
                 )
                 .ToListAsync();
 
         if (
-            existingRosterPlayers.Count > 0
+            existingRosterPlayers.Count >
+            0
         )
         {
             return BadRequest(
@@ -234,17 +276,19 @@ public class DraftsController : ControllerBase
         }
 
         var rosterPlayers =
-            draft.Picks.Select(
-                pick =>
-                    new RosterPlayer
-                    {
-                        LeagueMemberId =
-                            pick.LeagueMemberId,
+            draft.Picks
+                .Select(
+                    pick =>
+                        new RosterPlayer
+                        {
+                            LeagueMemberId =
+                                pick.LeagueMemberId,
 
-                        PlayerId =
-                            pick.PlayerId
-                    }
-            );
+                            PlayerId =
+                                pick.PlayerId
+                        }
+                )
+                .ToList();
 
         _context.RosterPlayers
             .AddRange(
@@ -284,11 +328,15 @@ public class DraftsController : ControllerBase
             return Unauthorized();
         }
 
-        var draft = await _context.Drafts
-            .Include(d => d.Picks)
-            .FirstOrDefaultAsync(d =>
-                d.Id == draftId
-            );
+        var draft =
+            await _context.Drafts
+                .Include(d =>
+                    d.Picks
+                )
+                .FirstOrDefaultAsync(d =>
+                    d.Id ==
+                    draftId
+                );
 
         if (draft == null)
         {
@@ -334,7 +382,7 @@ public class DraftsController : ControllerBase
 
         /*
          * Load teams in the same order
-         * your existing snake draft uses.
+         * used for the snake draft.
          */
         var teams =
             await _context.LeagueMembers
@@ -342,7 +390,9 @@ public class DraftsController : ControllerBase
                     m.LeagueId ==
                     draft.LeagueId
                 )
-                .OrderBy(m => m.Id)
+                .OrderBy(m =>
+                    m.Id
+                )
                 .ToListAsync();
 
         if (teams.Count == 0)
@@ -386,7 +436,7 @@ public class DraftsController : ControllerBase
         /*
          * SECURITY:
          *
-         * The logged-in user must own
+         * The authenticated user must own
          * the team whose turn it is.
          */
         if (
@@ -453,6 +503,10 @@ public class DraftsController : ControllerBase
         });
     }
 
+    /*
+     * Reads authenticated User ID
+     * from the JWT.
+     */
     private int? GetCurrentUserId()
     {
         var userIdClaim =

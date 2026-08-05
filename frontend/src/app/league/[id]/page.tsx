@@ -77,6 +77,13 @@ type MyLeagueTeam = {
   isCommissioner: boolean;
 };
 
+type DraftStatus = {
+  id: number;
+  leagueId: number;
+  isComplete: boolean;
+  createdAt: string;
+};
+
 function getFeaturedEvent(
   matchups: Matchup[]
 ) {
@@ -153,6 +160,12 @@ export default function LeaguePage() {
 
   const [myTeam, setMyTeam] =
     useState<MyLeagueTeam | null>(null);
+
+  const [draftExists, setDraftExists] =
+    useState(false);
+
+  const [draftComplete, setDraftComplete] =
+    useState(false);
 
   const [
     lineupPlayerCount,
@@ -252,8 +265,56 @@ export default function LeaguePage() {
           setMyTeam(
             myTeamData
           );
+
+          /*
+           * Check whether this league already
+           * has an active/completed draft.
+           *
+           * The draft GET is protected, so
+           * this must use apiFetch.
+           */
+          const draftResponse =
+            await apiFetch(
+              `/api/drafts/league/${id}`
+            );
+
+          if (
+            draftResponse.status === 401
+          ) {
+            router.push("/login");
+            return;
+          }
+
+          if (
+            draftResponse.status === 403
+          ) {
+            throw new Error(
+              "You are not allowed to view this league's draft."
+            );
+          }
+
+          if (
+            draftResponse.status === 404
+          ) {
+            setDraftExists(false);
+            setDraftComplete(false);
+          } else if (draftResponse.ok) {
+            const draftData: DraftStatus =
+              await draftResponse.json();
+
+            setDraftExists(true);
+            setDraftComplete(
+              draftData.isComplete
+            );
+          } else {
+            throw new Error(
+              "Could not check draft status."
+            );
+          }
         } else {
           setMyTeam(null);
+          setDraftExists(false);
+          setDraftComplete(false);
         }
       } catch (err) {
         setError(
@@ -919,7 +980,25 @@ export default function LeaguePage() {
 
           <div className="flex flex-wrap gap-3">
             {!hasRosters &&
-              myTeam?.isCommissioner && (
+              myTeam &&
+              draftExists &&
+              !draftComplete && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/draft?leagueId=${league.id}`
+                    )
+                  }
+                  className="rounded-xl bg-yellow-400 px-6 py-3 font-bold text-black transition hover:bg-yellow-300"
+                >
+                  Enter Draft
+                </button>
+              )}
+
+            {!hasRosters &&
+              myTeam?.isCommissioner &&
+              !draftExists && (
                 <button
                   type="button"
                   onClick={() =>

@@ -1,37 +1,55 @@
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace backend.Controllers;
 
 [ApiController]
 [Route("api/admin")]
+[Authorize]
 public class AdminController : ControllerBase
 {
     private readonly SeasonPlayerImportService _seasonPlayerImportService;
     private readonly LimitlessSnapshotService _limitlessSnapshotService;
+    private readonly IConfiguration _configuration;
 
     public AdminController(
         SeasonPlayerImportService seasonPlayerImportService,
-        LimitlessSnapshotService limitlessSnapshotService)
+        LimitlessSnapshotService limitlessSnapshotService,
+        IConfiguration configuration)
     {
         _seasonPlayerImportService =
             seasonPlayerImportService;
 
         _limitlessSnapshotService =
             limitlessSnapshotService;
+
+        _configuration =
+            configuration;
     }
 
     [HttpPost("import-season-players")]
     public async Task<ActionResult> ImportSeasonPlayers()
     {
+        if (!IsAppAdmin())
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Admin access required."
+            );
+        }
+
         try
         {
             var importedCount =
-                await _seasonPlayerImportService.ImportAsync();
+                await _seasonPlayerImportService
+                    .ImportAsync();
 
             return Ok(new
             {
                 importedCount,
+
                 message =
                     "Season player pool imported successfully."
             });
@@ -40,7 +58,8 @@ public class AdminController : ControllerBase
         {
             return BadRequest(new
             {
-                error = ex.Message
+                error =
+                    ex.Message
             });
         }
     }
@@ -48,6 +67,14 @@ public class AdminController : ControllerBase
     [HttpPost("snapshot-limitless")]
     public async Task<ActionResult> SnapshotLimitless()
     {
+        if (!IsAppAdmin())
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Admin access required."
+            );
+        }
+
         try
         {
             var players =
@@ -56,9 +83,15 @@ public class AdminController : ControllerBase
 
             return Ok(new
             {
-                players = players.Count,
-                firstPlayer = players.First().Name,
-                lastPlayer = players.Last().Name,
+                players =
+                    players.Count,
+
+                firstPlayer =
+                    players.First().Name,
+
+                lastPlayer =
+                    players.Last().Name,
+
                 message =
                     "Limitless Top 150 snapshot created successfully."
             });
@@ -67,8 +100,40 @@ public class AdminController : ControllerBase
         {
             return BadRequest(new
             {
-                error = ex.Message
+                error =
+                    ex.Message
             });
         }
+    }
+
+    private bool IsAppAdmin()
+    {
+        var userEmail =
+            User.FindFirstValue(
+                ClaimTypes.Email
+            );
+
+        var adminEmail =
+            _configuration[
+                "Admin:Email"
+            ];
+
+        if (
+            string.IsNullOrWhiteSpace(
+                userEmail
+            ) ||
+            string.IsNullOrWhiteSpace(
+                adminEmail
+            )
+        )
+        {
+            return false;
+        }
+
+        return string.Equals(
+            userEmail.Trim(),
+            adminEmail.Trim(),
+            StringComparison.OrdinalIgnoreCase
+        );
     }
 }

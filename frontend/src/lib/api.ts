@@ -1,4 +1,6 @@
-const API_BASE_URL = "http://localhost:5255";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://localhost:5255";
 
 export function getAuthToken() {
   if (typeof window === "undefined") {
@@ -15,8 +17,11 @@ export function setAuthToken(token: string) {
 export function clearAuthToken() {
   localStorage.removeItem("token");
 }
+
 export async function getCurrentUser() {
-  const response = await apiFetch("/api/auth/me");
+  const response = await apiFetch(
+    "/api/auth/me"
+  );
 
   if (!response.ok) {
     return null;
@@ -24,16 +29,29 @@ export async function getCurrentUser() {
 
   return response.json();
 }
+
 export async function apiFetch(
   path: string,
   options: RequestInit = {}
 ) {
-  const token = getAuthToken();
+  const token =
+    getAuthToken();
 
-  const headers = new Headers(options.headers);
+  const headers =
+    new Headers(
+      options.headers
+    );
 
-  if (!headers.has("Content-Type") && options.body) {
-    headers.set("Content-Type", "application/json");
+  if (
+    !headers.has(
+      "Content-Type"
+    ) &&
+    options.body
+  ) {
+    headers.set(
+      "Content-Type",
+      "application/json"
+    );
   }
 
   if (token) {
@@ -43,8 +61,16 @@ export async function apiFetch(
     );
   }
 
-  return fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const normalizedPath =
+    path.startsWith("/")
+      ? path
+      : `/${path}`;
+
+  return fetch(
+    `${API_BASE_URL}${normalizedPath}`,
+    {
+      ...options,
+      headers,
+    }
+  );
 }

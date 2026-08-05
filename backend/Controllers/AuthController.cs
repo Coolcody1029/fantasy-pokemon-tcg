@@ -1,5 +1,6 @@
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +8,6 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers;
 
@@ -25,19 +25,37 @@ public class AuthController : ControllerBase
     {
         _context = context;
         _configuration = configuration;
-        _passwordHasher = new PasswordHasher<User>();
+
+        _passwordHasher =
+            new PasswordHasher<User>();
     }
 
+    /*
+     * Register a new account.
+     */
     [HttpPost("register")]
     public async Task<ActionResult> Register(
         RegisterRequest request)
     {
-        var username = request.Username.Trim();
-        var email = request.Email.Trim().ToLowerInvariant();
+        var username =
+            request.Username.Trim();
 
-        if (string.IsNullOrWhiteSpace(username) ||
-            string.IsNullOrWhiteSpace(email) ||
-            string.IsNullOrWhiteSpace(request.Password))
+        var email =
+            request.Email
+                .Trim()
+                .ToLowerInvariant();
+
+        if (
+            string.IsNullOrWhiteSpace(
+                username
+            ) ||
+            string.IsNullOrWhiteSpace(
+                email
+            ) ||
+            string.IsNullOrWhiteSpace(
+                request.Password
+            )
+        )
         {
             return BadRequest(
                 "Username, email, and password are required."
@@ -51,8 +69,11 @@ public class AuthController : ControllerBase
             );
         }
 
-        var emailExists = await _context.Users
-            .AnyAsync(user => user.Email == email);
+        var emailExists =
+            await _context.Users
+                .AnyAsync(user =>
+                    user.Email == email
+                );
 
         if (emailExists)
         {
@@ -61,11 +82,12 @@ public class AuthController : ControllerBase
             );
         }
 
-        var usernameExists = await _context.Users
-            .AnyAsync(user =>
-                user.Username.ToLower() ==
-                username.ToLower()
-            );
+        var usernameExists =
+            await _context.Users
+                .AnyAsync(user =>
+                    user.Username.ToLower() ==
+                    username.ToLower()
+                );
 
         if (usernameExists)
         {
@@ -74,22 +96,32 @@ public class AuthController : ControllerBase
             );
         }
 
-        var user = new User
-        {
-            Username = username,
-            Email = email,
-            CreatedAt = DateTime.UtcNow
-        };
+        var user =
+            new User
+            {
+                Username =
+                    username,
+
+                Email =
+                    email,
+
+                CreatedAt =
+                    DateTime.UtcNow
+            };
 
         user.PasswordHash =
-            _passwordHasher.HashPassword(
-                user,
-                request.Password
-            );
+            _passwordHasher
+                .HashPassword(
+                    user,
+                    request.Password
+                );
 
-        _context.Users.Add(user);
+        _context.Users.Add(
+            user
+        );
 
-        await _context.SaveChangesAsync();
+        await _context
+            .SaveChangesAsync();
 
         return Ok(new
         {
@@ -99,51 +131,91 @@ public class AuthController : ControllerBase
             user.CreatedAt
         });
     }
+
+    /*
+     * Return the currently authenticated
+     * user.
+     *
+     * The backend also determines whether
+     * this account is the application admin.
+     */
     [Authorize]
     [HttpGet("me")]
     public async Task<ActionResult> Me()
     {
-    var userIdClaim =
-        User.FindFirstValue(
-            ClaimTypes.NameIdentifier
-        );
+        var userIdClaim =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier
+            );
 
-    if (!int.TryParse(
-            userIdClaim,
-            out var userId))
-    {
-        return Unauthorized();
+        if (
+            !int.TryParse(
+                userIdClaim,
+                out var userId
+            )
+        )
+        {
+            return Unauthorized();
+        }
+
+        var user =
+            await _context.Users
+                .FirstOrDefaultAsync(
+                    user =>
+                        user.Id ==
+                        userId
+                );
+
+        if (user == null)
+        {
+            return Unauthorized();
+        }
+
+        var adminEmail =
+            _configuration[
+                "Admin:Email"
+            ];
+
+        var isAdmin =
+            !string.IsNullOrWhiteSpace(
+                adminEmail
+            ) &&
+            string.Equals(
+                user.Email.Trim(),
+                adminEmail.Trim(),
+                StringComparison.OrdinalIgnoreCase
+            );
+
+        return Ok(new
+        {
+            user.Id,
+            user.Username,
+            user.Email,
+            user.CreatedAt,
+            isAdmin
+        });
     }
 
-    var user = await _context.Users
-        .FirstOrDefaultAsync(user =>
-            user.Id == userId
-        );
-
-    if (user == null)
-    {
-        return Unauthorized();
-    }
-
-    return Ok(new
-    {
-        user.Id,
-        user.Username,
-        user.Email,
-        user.CreatedAt
-    });
-    }
+    /*
+     * Authenticate an existing account
+     * and issue a JWT.
+     */
     [HttpPost("login")]
     public async Task<ActionResult> Login(
         LoginRequest request)
     {
         var email =
-            request.Email.Trim().ToLowerInvariant();
+            request.Email
+                .Trim()
+                .ToLowerInvariant();
 
-        var user = await _context.Users
-            .FirstOrDefaultAsync(user =>
-                user.Email == email
-            );
+        var user =
+            await _context.Users
+                .FirstOrDefaultAsync(
+                    user =>
+                        user.Email ==
+                        email
+                );
 
         if (user == null)
         {
@@ -153,21 +225,27 @@ public class AuthController : ControllerBase
         }
 
         var passwordResult =
-            _passwordHasher.VerifyHashedPassword(
-                user,
-                user.PasswordHash,
-                request.Password
-            );
+            _passwordHasher
+                .VerifyHashedPassword(
+                    user,
+                    user.PasswordHash,
+                    request.Password
+                );
 
-        if (passwordResult ==
-            PasswordVerificationResult.Failed)
+        if (
+            passwordResult ==
+            PasswordVerificationResult.Failed
+        )
         {
             return Unauthorized(
                 "Invalid email or password."
             );
         }
 
-        var token = CreateToken(user);
+        var token =
+            CreateToken(
+                user
+            );
 
         return Ok(new
         {
@@ -182,35 +260,45 @@ public class AuthController : ControllerBase
         });
     }
 
-    private string CreateToken(User user)
+    /*
+     * Create the authentication JWT.
+     */
+    private string CreateToken(
+        User user)
     {
         var jwtKey =
-            _configuration["Jwt:Key"]
+            _configuration[
+                "Jwt:Key"
+            ]
             ?? throw new InvalidOperationException(
                 "JWT key is missing."
             );
 
-        var claims = new List<Claim>
-        {
-            new(
-                ClaimTypes.NameIdentifier,
-                user.Id.ToString()
-            ),
+        var claims =
+            new List<Claim>
+            {
+                new(
+                    ClaimTypes.NameIdentifier,
+                    user.Id.ToString()
+                ),
 
-            new(
-                ClaimTypes.Name,
-                user.Username
-            ),
+                new(
+                    ClaimTypes.Name,
+                    user.Username
+                ),
 
-            new(
-                ClaimTypes.Email,
-                user.Email
-            )
-        };
+                new(
+                    ClaimTypes.Email,
+                    user.Email
+                )
+            };
 
         var key =
             new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtKey)
+                Encoding.UTF8
+                    .GetBytes(
+                        jwtKey
+                    )
             );
 
         var credentials =
@@ -222,37 +310,65 @@ public class AuthController : ControllerBase
         var token =
             new JwtSecurityToken(
                 issuer:
-                    _configuration["Jwt:Issuer"],
+                    _configuration[
+                        "Jwt:Issuer"
+                    ],
 
                 audience:
-                    _configuration["Jwt:Audience"],
+                    _configuration[
+                        "Jwt:Audience"
+                    ],
 
-                claims: claims,
+                claims:
+                    claims,
 
                 expires:
-                    DateTime.UtcNow.AddDays(7),
+                    DateTime.UtcNow
+                        .AddDays(7),
 
                 signingCredentials:
                     credentials
             );
 
         return new JwtSecurityTokenHandler()
-            .WriteToken(token);
+            .WriteToken(
+                token
+            );
     }
 }
 
 public class RegisterRequest
 {
-    public string Username { get; set; } = string.Empty;
+    public string Username
+    {
+        get;
+        set;
+    } = string.Empty;
 
-    public string Email { get; set; } = string.Empty;
+    public string Email
+    {
+        get;
+        set;
+    } = string.Empty;
 
-    public string Password { get; set; } = string.Empty;
+    public string Password
+    {
+        get;
+        set;
+    } = string.Empty;
 }
 
 public class LoginRequest
 {
-    public string Email { get; set; } = string.Empty;
+    public string Email
+    {
+        get;
+        set;
+    } = string.Empty;
 
-    public string Password { get; set; } = string.Empty;
+    public string Password
+    {
+        get;
+        set;
+    } = string.Empty;
 }

@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+
 import {
   useRouter,
   useSearchParams,
@@ -244,10 +245,15 @@ export default function DraftRoom() {
 
         /*
          * Load existing draft.
+         *
+         * SECURITY:
+         * This endpoint now requires JWT
+         * authentication and league membership,
+         * so this MUST use apiFetch.
          */
         let draftResponse =
-          await fetch(
-            `http://localhost:5255/api/drafts/league/${leagueId}`
+          await apiFetch(
+            `/api/drafts/league/${leagueId}`
           );
 
         /*
@@ -290,15 +296,38 @@ export default function DraftRoom() {
             );
           }
 
+          /*
+           * Reload the newly created draft.
+           * This GET is also authenticated.
+           */
           draftResponse =
-            await fetch(
-              `http://localhost:5255/api/drafts/league/${leagueId}`
+            await apiFetch(
+              `/api/drafts/league/${leagueId}`
             );
         }
 
-        if (!draftResponse.ok) {
+        if (
+          draftResponse.status === 401
+        ) {
+          router.push("/login");
+          return;
+        }
+
+        if (
+          draftResponse.status === 403
+        ) {
           throw new Error(
-            "Could not load draft."
+            "You are not a member of this league."
+          );
+        }
+
+        if (!draftResponse.ok) {
+          const message =
+            await draftResponse.text();
+
+          throw new Error(
+            message ||
+              "Could not load draft."
           );
         }
 
@@ -366,13 +395,30 @@ export default function DraftRoom() {
       }
 
       try {
+        /*
+         * SECURITY:
+         * Draft GET now requires the JWT,
+         * so polling must also use apiFetch.
+         */
         const response =
-          await fetch(
-            `http://localhost:5255/api/drafts/league/${leagueId}`,
+          await apiFetch(
+            `/api/drafts/league/${leagueId}`,
             {
               cache: "no-store",
             }
           );
+
+        if (
+          response.status === 401
+        ) {
+          return;
+        }
+
+        if (
+          response.status === 403
+        ) {
+          return;
+        }
 
         if (!response.ok) {
           return;

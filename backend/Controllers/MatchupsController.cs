@@ -12,26 +12,31 @@ namespace backend.Controllers;
 public class MatchupsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IConfiguration _configuration;
 
-    public MatchupsController(AppDbContext context)
+    public MatchupsController(
+        AppDbContext context,
+        IConfiguration configuration)
     {
         _context = context;
+        _configuration = configuration;
     }
 
     /*
      * Manually create a matchup.
-     * Commissioner only.
+     * Application admin only.
      */
     [Authorize]
     [HttpPost]
     public async Task<ActionResult> CreateMatchup(
         CreateMatchupRequest request)
     {
-        var userId = GetCurrentUserId();
-
-        if (userId == null)
+        if (!IsAppAdmin())
         {
-            return Unauthorized();
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Admin access required."
+            );
         }
 
         var league = await _context.Leagues
@@ -44,20 +49,6 @@ public class MatchupsController : ControllerBase
         {
             return NotFound(
                 "League not found."
-            );
-        }
-
-        var commissioner =
-            league.Members.FirstOrDefault(member =>
-                member.UserId == userId.Value &&
-                member.IsCommissioner
-            );
-
-        if (commissioner == null)
-        {
-            return StatusCode(
-                StatusCodes.Status403Forbidden,
-                "Only the league commissioner can create matchups."
             );
         }
 
@@ -859,6 +850,42 @@ public class MatchupsController : ControllerBase
         }
 
         return rounds;
+    }
+
+    /*
+     * Application-wide admin check.
+     * Uses the same Admin:Email setting
+     * as the other admin endpoints.
+     */
+    private bool IsAppAdmin()
+    {
+        var userEmail =
+            User.FindFirstValue(
+                ClaimTypes.Email
+            );
+
+        var adminEmail =
+            _configuration[
+                "Admin:Email"
+            ];
+
+        if (
+            string.IsNullOrWhiteSpace(
+                userEmail
+            ) ||
+            string.IsNullOrWhiteSpace(
+                adminEmail
+            )
+        )
+        {
+            return false;
+        }
+
+        return string.Equals(
+            userEmail.Trim(),
+            adminEmail.Trim(),
+            StringComparison.OrdinalIgnoreCase
+        );
     }
 
     private int? GetCurrentUserId()

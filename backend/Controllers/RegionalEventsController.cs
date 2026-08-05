@@ -4,6 +4,7 @@ using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace backend.Controllers;
 
@@ -13,13 +14,16 @@ public class RegionalEventsController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly LimitlessResultsService _limitlessResultsService;
+    private readonly IConfiguration _configuration;
 
     public RegionalEventsController(
         AppDbContext context,
-        LimitlessResultsService limitlessResultsService)
+        LimitlessResultsService limitlessResultsService,
+        IConfiguration configuration)
     {
         _context = context;
         _limitlessResultsService = limitlessResultsService;
+        _configuration = configuration;
     }
 
     /*
@@ -96,6 +100,14 @@ public class RegionalEventsController : ControllerBase
     public async Task<ActionResult> CreateEvent(
         CreateRegionalEventRequest request)
     {
+        if (!IsAppAdmin())
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Admin access required."
+            );
+        }
+
         if (
             string.IsNullOrWhiteSpace(
                 request.Name
@@ -167,6 +179,14 @@ public class RegionalEventsController : ControllerBase
         int id,
         UpdateRegionalStatusRequest request)
     {
+        if (!IsAppAdmin())
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Admin access required."
+            );
+        }
+
         var regionalEvent =
             await _context.RegionalEvents
                 .FirstOrDefaultAsync(e =>
@@ -262,6 +282,14 @@ public class RegionalEventsController : ControllerBase
         int eventId,
         AddEventResultRequest request)
     {
+        if (!IsAppAdmin())
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Admin access required."
+            );
+        }
+
         var regionalEvent =
             await _context.RegionalEvents
                 .FirstOrDefaultAsync(e =>
@@ -390,6 +418,14 @@ public class RegionalEventsController : ControllerBase
         int eventId,
         BulkEventResultsRequest request)
     {
+        if (!IsAppAdmin())
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Admin access required."
+            );
+        }
+
         var regionalEvent =
             await _context.RegionalEvents
                 .FirstOrDefaultAsync(e =>
@@ -724,6 +760,14 @@ public class RegionalEventsController : ControllerBase
             int eventId,
             ImportLimitlessResultsRequest request)
     {
+        if (!IsAppAdmin())
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Admin access required."
+            );
+        }
+
         var regionalEvent =
             await _context.RegionalEvents
                 .FirstOrDefaultAsync(
@@ -1006,6 +1050,43 @@ public class RegionalEventsController : ControllerBase
             Message =
                 "Limitless results imported successfully."
         });
+    }
+
+    /*
+     * Application-wide admin check.
+     *
+     * Uses the same Admin:Email configuration
+     * as the other admin-only endpoints.
+     */
+    private bool IsAppAdmin()
+    {
+        var userEmail =
+            User.FindFirstValue(
+                ClaimTypes.Email
+            );
+
+        var adminEmail =
+            _configuration[
+                "Admin:Email"
+            ];
+
+        if (
+            string.IsNullOrWhiteSpace(
+                userEmail
+            ) ||
+            string.IsNullOrWhiteSpace(
+                adminEmail
+            )
+        )
+        {
+            return false;
+        }
+
+        return string.Equals(
+            userEmail.Trim(),
+            adminEmail.Trim(),
+            StringComparison.OrdinalIgnoreCase
+        );
     }
 
     /*

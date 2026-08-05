@@ -9,7 +9,15 @@ import {
 import { useRouter } from "next/navigation";
 
 import Navbar from "@/components/layout/Navbar";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getCurrentUser } from "@/lib/api";
+
+type CurrentUser = {
+  id: number;
+  username: string;
+  email: string;
+  createdAt: string;
+  isAdmin: boolean;
+};
 
 type Player = {
   id: number;
@@ -41,6 +49,10 @@ type LimitlessImportResponse = {
 
 export default function AdminRegionalsPage() {
   const router = useRouter();
+
+  const [checkingAdmin, setCheckingAdmin] =
+    useState(true);
+
 
   const [players, setPlayers] =
     useState<Player[]>([]);
@@ -112,6 +124,26 @@ export default function AdminRegionalsPage() {
   useEffect(() => {
     async function loadData() {
       try {
+        /*
+         * SECURITY:
+         * Only the configured application admin
+         * may view this page.
+         */
+        const currentUser =
+          (await getCurrentUser()) as
+            | CurrentUser
+            | null;
+
+        if (!currentUser) {
+          router.replace("/login");
+          return;
+        }
+
+        if (!currentUser.isAdmin) {
+          router.replace("/");
+          return;
+        }
+
         const [
           playersResponse,
           eventsResponse,
@@ -164,11 +196,13 @@ export default function AdminRegionalsPage() {
             ? err.message
             : "Could not load admin data."
         );
+      } finally {
+        setCheckingAdmin(false);
       }
     }
 
     loadData();
-  }, []);
+  }, [router]);
 
   async function handleCreateEvent(
     event: FormEvent<HTMLFormElement>
@@ -495,6 +529,20 @@ export default function AdminRegionalsPage() {
     } finally {
       setImportingLimitless(false);
     }
+  }
+
+  if (checkingAdmin) {
+    return (
+      <main className="min-h-screen bg-black text-white">
+        <Navbar />
+
+        <div className="mx-auto max-w-7xl px-6 py-12">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center text-zinc-400">
+            Checking admin access...
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (
