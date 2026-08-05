@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
+import { apiFetch } from "@/lib/api";
 
 type RegionalResult = {
   id: number;
@@ -52,9 +53,9 @@ export default function RegionalsPage() {
         setLoading(true);
         setError("");
 
-        const response = await fetch(
-          "http://localhost:5255/api/regionalevents"
-        );
+        const response = await apiFetch(
+  "/api/regionalevents"
+);
 
         if (!response.ok) {
           throw new Error(
@@ -102,9 +103,9 @@ export default function RegionalsPage() {
       try {
         setLoadingEvent(true);
 
-        const response = await fetch(
-          `http://localhost:5255/api/regionalevents/${selectedEventId}`
-        );
+       const response = await apiFetch(
+  `/api/regionalevents/${selectedEventId}`
+);
 
         if (!response.ok) {
           throw new Error(

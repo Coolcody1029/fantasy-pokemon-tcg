@@ -1,83 +1,286 @@
 using backend.Data;
-using Microsoft.EntityFrameworkCore;
 using backend.Services;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+
 using System.Text;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder =
+    WebApplication.CreateBuilder(
+        args
+    );
 
 builder.Services.AddControllers();
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
-);
+/*
+ * ---------------------------------------
+ * DATABASE
+ * ---------------------------------------
+ *
+ * Local development:
+ * ConnectionStrings:DefaultConnection
+ * from appsettings.json.
+ *
+ * Production:
+ * environment variable:
+ *
+ * ConnectionStrings__DefaultConnection
+ */
+var connectionString =
+    builder.Configuration
+        .GetConnectionString(
+            "DefaultConnection"
+        );
 
-builder.Services.AddScoped<SeasonPlayerImportService>();
-builder.Services.AddHttpClient<LimitlessSnapshotService>();
-builder.Services.AddHttpClient<LimitlessResultsService>();
-builder.Services.AddCors(options =>
+if (
+    string.IsNullOrWhiteSpace(
+        connectionString
+    )
+)
 {
-    options.AddPolicy("Frontend", policy =>
-    {
-        policy
-            .WithOrigins("http://localhost:3000")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
-});
+    throw new InvalidOperationException(
+        "Database connection string is missing."
+    );
+}
 
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddDbContext<AppDbContext>(
+        options =>
+            options.UseNpgsql(
+                connectionString
+            )
+    );
+
+/*
+ * ---------------------------------------
+ * APPLICATION SERVICES
+ * ---------------------------------------
+ */
+builder.Services
+    .AddScoped<
+        SeasonPlayerImportService
+    >();
+
+builder.Services
+    .AddHttpClient<
+        LimitlessSnapshotService
+    >();
+
+builder.Services
+    .AddHttpClient<
+        LimitlessResultsService
+    >();
+
+/*
+ * ---------------------------------------
+ * CORS
+ * ---------------------------------------
+ *
+ * Local:
+ * http://localhost:3000
+ *
+ * Production:
+ * Frontend:Url
+ *
+ * Environment variable:
+ * Frontend__Url
+ */
+var frontendUrl =
+    builder.Configuration[
+        "Frontend:Url"
+    ];
+
+var allowedOrigins =
+    new List<string>
     {
-        var jwtKey =
-            builder.Configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException(
-                "JWT key is missing."
-            );
+        "http://localhost:3000"
+    };
 
-        options.TokenValidationParameters =
-            new TokenValidationParameters
+if (
+    !string.IsNullOrWhiteSpace(
+        frontendUrl
+    )
+)
+{
+    allowedOrigins.Add(
+        frontendUrl.TrimEnd('/')
+    );
+}
+
+builder.Services.AddCors(
+    options =>
+    {
+        options.AddPolicy(
+            "Frontend",
+            policy =>
             {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
+                policy
+                    .WithOrigins(
+                        allowedOrigins
+                            .Distinct()
+                            .ToArray()
+                    )
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
+            }
+        );
+    }
+);
 
-                ValidIssuer =
-                    builder.Configuration["Jwt:Issuer"],
+/*
+ * ---------------------------------------
+ * JWT AUTHENTICATION
+ * ---------------------------------------
+ *
+ * Production environment variables:
+ *
+ * Jwt__Key
+ * Jwt__Issuer
+ * Jwt__Audience
+ */
+var jwtKey =
+    builder.Configuration[
+        "Jwt:Key"
+    ];
 
-                ValidAudience =
-                    builder.Configuration["Jwt:Audience"],
+var jwtIssuer =
+    builder.Configuration[
+        "Jwt:Issuer"
+    ];
 
-                IssuerSigningKey =
-                    new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(jwtKey)
-                    ),
+var jwtAudience =
+    builder.Configuration[
+        "Jwt:Audience"
+    ];
 
-                ClockSkew = TimeSpan.Zero
-            };
-    });
+if (
+    string.IsNullOrWhiteSpace(
+        jwtKey
+    )
+)
+{
+    throw new InvalidOperationException(
+        "JWT key is missing."
+    );
+}
 
-builder.Services.AddAuthorization();
+if (
+    string.IsNullOrWhiteSpace(
+        jwtIssuer
+    )
+)
+{
+    throw new InvalidOperationException(
+        "JWT issuer is missing."
+    );
+}
 
-var app = builder.Build();
+if (
+    string.IsNullOrWhiteSpace(
+        jwtAudience
+    )
+)
+{
+    throw new InvalidOperationException(
+        "JWT audience is missing."
+    );
+}
 
-app.UseCors("Frontend");
+builder.Services
+    .AddAuthentication(
+        JwtBearerDefaults
+            .AuthenticationScheme
+    )
+    .AddJwtBearer(
+        options =>
+        {
+            options
+                .TokenValidationParameters =
+                new TokenValidationParameters
+                {
+                    ValidateIssuer =
+                        true,
+
+                    ValidateAudience =
+                        true,
+
+                    ValidateLifetime =
+                        true,
+
+                    ValidateIssuerSigningKey =
+                        true,
+
+                    ValidIssuer =
+                        jwtIssuer,
+
+                    ValidAudience =
+                        jwtAudience,
+
+                    IssuerSigningKey =
+                        new SymmetricSecurityKey(
+                            Encoding.UTF8
+                                .GetBytes(
+                                    jwtKey
+                                )
+                        ),
+
+                    ClockSkew =
+                        TimeSpan.Zero
+                };
+        }
+    );
+
+builder.Services
+    .AddAuthorization();
+
+var app =
+    builder.Build();
+
+/*
+ * ---------------------------------------
+ * HTTP PIPELINE
+ * ---------------------------------------
+ */
+app.UseCors(
+    "Frontend"
+);
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-using (var scope = app.Services.CreateScope())
+/*
+ * ---------------------------------------
+ * DATABASE SETUP
+ * ---------------------------------------
+ *
+ * In Development:
+ * keep your existing automatic seed.
+ *
+ * In Production:
+ * do NOT automatically reseed every
+ * startup.
+ */
+if (
+    app.Environment
+        .IsDevelopment()
+)
 {
-    var dbContext =
-        scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    using var scope =
+        app.Services.CreateScope();
 
-    await DbSeeder.SeedAsync(dbContext);
+    var dbContext =
+        scope.ServiceProvider
+            .GetRequiredService<
+                AppDbContext
+            >();
+
+    await DbSeeder.SeedAsync(
+        dbContext
+    );
 }
+
 app.Run();

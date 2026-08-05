@@ -99,13 +99,13 @@ export default function LineupPage() {
           eventResponse,
           lineupResponse,
         ] = await Promise.all([
-          fetch(
-            `http://localhost:5255/api/leagues/${leagueId}/rosters`
-          ),
+          apiFetch(
+  `/api/leagues/${leagueId}/rosters`
+),
 
-          fetch(
-            `http://localhost:5255/api/regionalevents/${eventId}`
-          ),
+apiFetch(
+  `/api/regionalevents/${eventId}`
+),
 
           apiFetch(
             `/api/lineups/team/${teamId}/event/${eventId}`

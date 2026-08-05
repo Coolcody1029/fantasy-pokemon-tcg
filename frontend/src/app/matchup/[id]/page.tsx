@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
+import { apiFetch } from "@/lib/api";
 
 type PlayerScore = {
   playerId: number;
@@ -53,10 +54,9 @@ export default function MatchupPage() {
         setLoading(true);
         setError("");
 
-        const response = await fetch(
-          `http://localhost:5255/api/matchups/${id}`
-        );
-
+        const response = await apiFetch(
+  `/api/matchups/${id}`
+);
         if (!response.ok) {
           throw new Error(
             "Matchup not found."

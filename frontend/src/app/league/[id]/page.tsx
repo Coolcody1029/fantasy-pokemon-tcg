@@ -206,26 +206,25 @@ export default function LeaguePage() {
         setError("");
 
         const leagueResponse =
-          await fetch(
-            `http://localhost:5255/api/leagues/${id}`
-          );
+  await apiFetch(
+    `/api/leagues/${id}`
+  );
 
-        if (!leagueResponse.ok) {
-          throw new Error(
-            "League not found."
-          );
-        }
+if (!leagueResponse.ok) {
+  throw new Error(
+    "League not found."
+  );
+}
 
-        const leagueData: League =
-          await leagueResponse.json();
+const leagueData: League =
+  await leagueResponse.json();
 
-        setLeague(leagueData);
+setLeague(leagueData);
 
-        const rosterResponse =
-          await fetch(
-            `http://localhost:5255/api/leagues/${id}/rosters`
-          );
-
+const rosterResponse =
+  await apiFetch(
+    `/api/leagues/${id}/rosters`
+  );
         if (rosterResponse.ok) {
           const rosterData: Roster[] =
             await rosterResponse.json();
@@ -233,11 +232,10 @@ export default function LeaguePage() {
           setRosters(rosterData);
         }
 
-        const matchupsResponse =
-          await fetch(
-            `http://localhost:5255/api/matchups/league/${id}`
-          );
-
+       const matchupsResponse =
+  await apiFetch(
+    `/api/matchups/league/${id}`
+  );
         if (matchupsResponse.ok) {
           const matchupData: Matchup[] =
             await matchupsResponse.json();
@@ -890,9 +888,9 @@ export default function LeaguePage() {
       }
 
       const matchupsResponse =
-        await fetch(
-          `http://localhost:5255/api/matchups/league/${league.id}`
-        );
+  await apiFetch(
+    `/api/matchups/league/${league.id}`
+  );
 
       if (
         matchupsResponse.ok

@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
-import { setAuthToken } from "@/lib/api";
+import { setAuthToken, apiFetch } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -23,21 +23,18 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
 
-    try {
-      const registerResponse = await fetch(
-        "http://localhost:5255/api/auth/register",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username,
-            email,
-            password,
-          }),
-        }
-      );
+   try {
+  const registerResponse = await apiFetch(
+    "/api/auth/register",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        username,
+        email,
+        password,
+      }),
+    }
+  );
 
       if (!registerResponse.ok) {
         const message = await registerResponse.text();
@@ -48,19 +45,16 @@ export default function RegisterPage() {
       }
 
       // Automatically log in immediately after registration.
-      const loginResponse = await fetch(
-        "http://localhost:5255/api/auth/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            password,
-          }),
-        }
-      );
+     const loginResponse = await apiFetch(
+  "/api/auth/login",
+  {
+    method: "POST",
+    body: JSON.stringify({
+      email,
+      password,
+    }),
+  }
+);
 
       if (!loginResponse.ok) {
         throw new Error(

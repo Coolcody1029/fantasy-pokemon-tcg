@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 type Player = {
   id: number;
@@ -22,25 +23,33 @@ export default function PlayersBrowser() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadPlayers() {
-      try {
-        const response = await fetch("http://localhost:5255/api/players");
+  async function loadPlayers() {
+    try {
+      const response = await apiFetch(
+        "/api/players"
+      );
 
-        if (!response.ok) {
-          throw new Error("Failed to load players");
-        }
-
-        const data: Player[] = await response.json();
-        setPlayers(data);
-      } catch {
-        setError("Could not connect to the player API.");
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error(
+          "Failed to load players"
+        );
       }
-    }
 
-    loadPlayers();
-  }, []);
+      const data: Player[] =
+        await response.json();
+
+      setPlayers(data);
+    } catch {
+      setError(
+        "Could not connect to the player API."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  loadPlayers();
+}, []);
 
   const countries = useMemo(() => {
     return [

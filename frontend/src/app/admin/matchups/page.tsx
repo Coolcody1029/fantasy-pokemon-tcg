@@ -137,9 +137,9 @@ export default function AdminMatchupsPage() {
          * the admin check succeeds.
          */
         const response =
-          await fetch(
-            "http://localhost:5255/api/regionalevents"
-          );
+        await apiFetch(
+          "/api/regionalevents"
+         );
 
         if (!response.ok) {
           throw new Error(

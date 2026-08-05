@@ -144,18 +144,18 @@ export default function AdminRegionalsPage() {
           return;
         }
 
-        const [
-          playersResponse,
-          eventsResponse,
-        ] = await Promise.all([
-          fetch(
-            "http://localhost:5255/api/players"
-          ),
+       const [
+  playersResponse,
+  eventsResponse,
+] = await Promise.all([
+  apiFetch(
+    "/api/players"
+  ),
 
-          fetch(
-            "http://localhost:5255/api/regionalevents"
-          ),
-        ]);
+  apiFetch(
+    "/api/regionalevents"
+  ),
+]);
 
         if (
           !playersResponse.ok ||

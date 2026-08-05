@@ -1,0 +1,35 @@
+# -----------------------------
+# Backend / .NET
+# -----------------------------
+backend/bin/
+backend/obj/
+
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local backend secrets/config
+backend/appsettings.Development.json
+
+# -----------------------------
+# Frontend / Next.js
+# -----------------------------
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Frontend environment files
+frontend/.env*
+!frontend/.env.example
+
+# Vercel
+frontend/.vercel/
+
+# -----------------------------
+# General
+# -----------------------------
+.DS_Store
+*.log

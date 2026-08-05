@@ -165,9 +165,9 @@ export default function DraftRoom() {
          * Load league.
          */
         const leagueResponse =
-          await fetch(
-            `http://localhost:5255/api/leagues/${leagueId}`
-          );
+  await apiFetch(
+    `/api/leagues/${leagueId}`
+  );
 
         if (!leagueResponse.ok) {
           throw new Error(
@@ -225,10 +225,10 @@ export default function DraftRoom() {
         /*
          * Load full Top 150 player pool.
          */
-        const playersResponse =
-          await fetch(
-            "http://localhost:5255/api/players"
-          );
+       const playersResponse =
+  await apiFetch(
+    "/api/players"
+  );
 
         if (!playersResponse.ok) {
           throw new Error(
