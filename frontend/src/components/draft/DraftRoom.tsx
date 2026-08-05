@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   useRouter,
   useSearchParams,
@@ -71,6 +75,9 @@ export default function DraftRoom() {
   const [myTeam, setMyTeam] =
     useState<MyLeagueTeam | null>(null);
 
+  const [allPlayers, setAllPlayers] =
+    useState<Player[]>([]);
+
   const [loading, setLoading] =
     useState(true);
 
@@ -80,6 +87,67 @@ export default function DraftRoom() {
   const [error, setError] =
     useState("");
 
+  /*
+   * Refs let the polling callback see the
+   * latest values without constantly rebuilding
+   * the polling interval.
+   */
+  const savingPickRef =
+    useRef(false);
+
+  const completingDraftRef =
+    useRef(false);
+
+  const isCompleteRef =
+    useRef(false);
+
+  useEffect(() => {
+    savingPickRef.current =
+      savingPick;
+  }, [savingPick]);
+
+  useEffect(() => {
+    completingDraftRef.current =
+      completingDraft;
+  }, [completingDraft]);
+
+  useEffect(() => {
+    isCompleteRef.current =
+      isComplete;
+  }, [isComplete]);
+
+  /*
+   * Given the full player pool and current picks,
+   * rebuild the list of undrafted players.
+   */
+  function rebuildAvailablePlayers(
+    players: Player[],
+    picks: DraftPick[]
+  ) {
+    const draftedPlayerIds =
+      new Set(
+        picks.map(
+          (pick) =>
+            pick.player.id
+        )
+      );
+
+    const remainingPlayers =
+      players.filter(
+        (player) =>
+          !draftedPlayerIds.has(
+            player.id
+          )
+      );
+
+    setAvailablePlayers(
+      remainingPlayers
+    );
+  }
+
+  /*
+   * Initial page load.
+   */
   useEffect(() => {
     async function loadDraft() {
       if (!leagueId) {
@@ -93,7 +161,7 @@ export default function DraftRoom() {
 
       try {
         /*
-         * Load the league.
+         * Load league.
          */
         const leagueResponse =
           await fetch(
@@ -117,11 +185,16 @@ export default function DraftRoom() {
             })
           );
 
-        setLeague(leagueData);
-        setTeams(leagueTeams);
+        setLeague(
+          leagueData
+        );
+
+        setTeams(
+          leagueTeams
+        );
 
         /*
-         * Load the logged-in user's team.
+         * Load logged-in user's team.
          */
         const myTeamResponse =
           await apiFetch(
@@ -144,10 +217,12 @@ export default function DraftRoom() {
         const myTeamData: MyLeagueTeam =
           await myTeamResponse.json();
 
-        setMyTeam(myTeamData);
+        setMyTeam(
+          myTeamData
+        );
 
         /*
-         * Load available players.
+         * Load full Top 150 player pool.
          */
         const playersResponse =
           await fetch(
@@ -160,8 +235,12 @@ export default function DraftRoom() {
           );
         }
 
-        const allPlayers: Player[] =
+        const playerData: Player[] =
           await playersResponse.json();
+
+        setAllPlayers(
+          playerData
+        );
 
         /*
          * Load existing draft.
@@ -172,11 +251,8 @@ export default function DraftRoom() {
           );
 
         /*
-         * No draft exists yet.
-         *
-         * Only commissioner will be
-         * allowed by the backend to
-         * create one.
+         * If no draft exists yet,
+         * commissioner can create it.
          */
         if (
           draftResponse.status === 404
@@ -214,11 +290,6 @@ export default function DraftRoom() {
             );
           }
 
-          /*
-           * Reload the newly-created draft
-           * so we get picks in the normal
-           * DraftResponse shape.
-           */
           draftResponse =
             await fetch(
               `http://localhost:5255/api/drafts/league/${leagueId}`
@@ -246,28 +317,9 @@ export default function DraftRoom() {
           draftData.isComplete
         );
 
-        /*
-         * Remove already drafted players
-         * from the available pool.
-         */
-        const draftedPlayerIds =
-          new Set(
-            draftData.picks.map(
-              (pick) =>
-                pick.player.id
-            )
-          );
-
-        const remainingPlayers =
-          allPlayers.filter(
-            (player) =>
-              !draftedPlayerIds.has(
-                player.id
-              )
-          );
-
-        setAvailablePlayers(
-          remainingPlayers
+        rebuildAvailablePlayers(
+          playerData,
+          draftData.picks
         );
       } catch (err) {
         setError(
@@ -282,6 +334,105 @@ export default function DraftRoom() {
 
     loadDraft();
   }, [leagueId, router]);
+
+  /*
+   * LIVE DRAFT POLLING
+   *
+   * Every 2 seconds:
+   * - fetch latest picks
+   * - update draft board
+   * - update whose turn it is
+   * - update available player list
+   *
+   * We pause polling while this browser
+   * is submitting a pick or completing
+   * the draft.
+   */
+  useEffect(() => {
+    if (
+      !leagueId ||
+      loading
+    ) {
+      return;
+    }
+
+    async function refreshDraft() {
+      if (
+        savingPickRef.current ||
+        completingDraftRef.current ||
+        isCompleteRef.current
+      ) {
+        return;
+      }
+
+      try {
+        const response =
+          await fetch(
+            `http://localhost:5255/api/drafts/league/${leagueId}`,
+            {
+              cache: "no-store",
+            }
+          );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const latestDraft: DraftResponse =
+          await response.json();
+
+        setDraftId(
+          latestDraft.id
+        );
+
+        setDraftPicks(
+          latestDraft.picks
+        );
+
+        setIsComplete(
+          latestDraft.isComplete
+        );
+
+        if (
+          allPlayers.length > 0
+        ) {
+          rebuildAvailablePlayers(
+            allPlayers,
+            latestDraft.picks
+          );
+        }
+      } catch {
+        /*
+         * A temporary polling failure
+         * should not break the draft page.
+         *
+         * The next poll will try again.
+         */
+      }
+    }
+
+    /*
+     * Poll once immediately when the
+     * effect starts.
+     */
+    refreshDraft();
+
+    const interval =
+      window.setInterval(
+        refreshDraft,
+        2000
+      );
+
+    return () => {
+      window.clearInterval(
+        interval
+      );
+    };
+  }, [
+    leagueId,
+    loading,
+    allPlayers,
+  ]);
 
   if (loading) {
     return (
@@ -373,12 +524,6 @@ export default function DraftRoom() {
   const currentTeam =
     getCurrentTeam();
 
-  /*
-   * Important:
-   *
-   * Current draft team must match
-   * the logged-in user's fantasy team.
-   */
   const isMyTurn =
     currentTeam.id ===
     myTeam.teamId;
@@ -443,22 +588,23 @@ export default function DraftRoom() {
       const savedPick: DraftPick =
         await response.json();
 
+      /*
+       * Update this browser immediately.
+       * Other browsers will receive it
+       * on their next poll.
+       */
+      const updatedPicks = [
+        ...draftPicks,
+        savedPick,
+      ];
+
       setDraftPicks(
-        (previous) => [
-          ...previous,
-          savedPick,
-        ]
+        updatedPicks
       );
 
-      setAvailablePlayers(
-        (previous) =>
-          previous.filter(
-            (
-              availablePlayer
-            ) =>
-              availablePlayer.id !==
-              player.id
-          )
+      rebuildAvailablePlayers(
+        allPlayers,
+        updatedPicks
       );
     } catch (err) {
       setError(

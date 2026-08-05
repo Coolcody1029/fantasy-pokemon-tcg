@@ -17,6 +17,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<SeasonPlayerImportService>();
 builder.Services.AddHttpClient<LimitlessSnapshotService>();
+builder.Services.AddHttpClient<LimitlessResultsService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>

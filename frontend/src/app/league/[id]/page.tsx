@@ -77,6 +77,65 @@ type MyLeagueTeam = {
   isCommissioner: boolean;
 };
 
+function getFeaturedEvent(
+  matchups: Matchup[]
+) {
+  const uniqueEvents =
+    Array.from(
+      new Map(
+        matchups.map(
+          (matchup) => [
+            matchup.event.id,
+            matchup.event,
+          ]
+        )
+      ).values()
+    );
+
+  const liveEvent =
+    uniqueEvents
+      .filter(
+        (event) =>
+          event.status === "Live"
+      )
+      .sort(
+        (a, b) =>
+          a.seasonWeek -
+          b.seasonWeek
+      )[0] ?? null;
+
+  const upcomingEvent =
+    uniqueEvents
+      .filter(
+        (event) =>
+          event.status ===
+          "Upcoming"
+      )
+      .sort(
+        (a, b) =>
+          a.seasonWeek -
+          b.seasonWeek
+      )[0] ?? null;
+
+  const latestFinalEvent =
+    uniqueEvents
+      .filter(
+        (event) =>
+          event.status === "Final"
+      )
+      .sort(
+        (a, b) =>
+          b.seasonWeek -
+          a.seasonWeek
+      )[0] ?? null;
+
+  return (
+    liveEvent ??
+    upcomingEvent ??
+    latestFinalEvent
+  );
+}
+
 export default function LeaguePage() {
   const params = useParams();
   const router = useRouter();
@@ -95,27 +154,48 @@ export default function LeaguePage() {
   const [myTeam, setMyTeam] =
     useState<MyLeagueTeam | null>(null);
 
+  const [
+    lineupPlayerCount,
+    setLineupPlayerCount,
+  ] = useState<number | null>(null);
+
+  const [
+    loadingLineup,
+    setLoadingLineup,
+  ] = useState(false);
+
   const [loading, setLoading] =
     useState(true);
 
-  const [generatingSchedule, setGeneratingSchedule] =
-  useState(false);
+  const [
+    generatingSchedule,
+    setGeneratingSchedule,
+  ] = useState(false);
 
-  const [scheduleMessage, setScheduleMessage] =
-  useState("");
+  const [
+    scheduleMessage,
+    setScheduleMessage,
+  ] = useState("");
 
   const [error, setError] =
     useState("");
 
+  /*
+   * ---------------------------------------
+   * INITIAL LEAGUE LOAD
+   * ---------------------------------------
+   */
+
   useEffect(() => {
     async function loadLeague() {
       try {
-        /*
-         * League
-         */
-        const leagueResponse = await fetch(
-          `http://localhost:5255/api/leagues/${id}`
-        );
+        setLoading(true);
+        setError("");
+
+        const leagueResponse =
+          await fetch(
+            `http://localhost:5255/api/leagues/${id}`
+          );
 
         if (!leagueResponse.ok) {
           throw new Error(
@@ -128,12 +208,10 @@ export default function LeaguePage() {
 
         setLeague(leagueData);
 
-        /*
-         * Rosters
-         */
-        const rosterResponse = await fetch(
-          `http://localhost:5255/api/leagues/${id}/rosters`
-        );
+        const rosterResponse =
+          await fetch(
+            `http://localhost:5255/api/leagues/${id}/rosters`
+          );
 
         if (rosterResponse.ok) {
           const rosterData: Roster[] =
@@ -142,12 +220,10 @@ export default function LeaguePage() {
           setRosters(rosterData);
         }
 
-        /*
-         * Matchups
-         */
-        const matchupsResponse = await fetch(
-          `http://localhost:5255/api/matchups/league/${id}`
-        );
+        const matchupsResponse =
+          await fetch(
+            `http://localhost:5255/api/matchups/league/${id}`
+          );
 
         if (matchupsResponse.ok) {
           const matchupData: Matchup[] =
@@ -156,29 +232,35 @@ export default function LeaguePage() {
           setMatchups(matchupData);
         }
 
-        /*
-         * Logged-in user's team
-         */
-        const myTeamResponse = await apiFetch(
-          `/api/leagues/${id}/me`
-        );
+        const myTeamResponse =
+          await apiFetch(
+            `/api/leagues/${id}/me`
+          );
+
+        if (
+          myTeamResponse.status === 401
+        ) {
+          router.push("/login");
+          return;
+        }
 
         if (myTeamResponse.ok) {
-          const myTeamData: MyLeagueTeam =
-            await myTeamResponse.json();
+          const myTeamData:
+            MyLeagueTeam =
+              await myTeamResponse.json();
 
-          setMyTeam(myTeamData);
+          setMyTeam(
+            myTeamData
+          );
         } else {
           setMyTeam(null);
         }
       } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError(
-            "Something went wrong."
-          );
-        }
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong."
+        );
       } finally {
         setLoading(false);
       }
@@ -187,7 +269,93 @@ export default function LeaguePage() {
     if (id) {
       loadLeague();
     }
-  }, [id]);
+  }, [id, router]);
+
+  /*
+   * ---------------------------------------
+   * LINEUP STATUS
+   *
+   * Whenever the relevant event changes,
+   * check how many players this manager
+   * currently has submitted.
+   * ---------------------------------------
+   */
+
+  useEffect(() => {
+    async function loadLineupStatus() {
+      if (
+        !myTeam ||
+        matchups.length === 0
+      ) {
+        setLineupPlayerCount(
+          null
+        );
+
+        setLoadingLineup(false);
+
+        return;
+      }
+
+      const event =
+        getFeaturedEvent(
+          matchups
+        );
+
+      if (!event) {
+        setLineupPlayerCount(
+          null
+        );
+
+        setLoadingLineup(false);
+
+        return;
+      }
+
+      setLoadingLineup(true);
+
+      try {
+        const response =
+          await apiFetch(
+            `/api/lineups/team/${myTeam.teamId}/event/${event.id}`
+          );
+
+        if (
+          response.status === 401
+        ) {
+          router.push("/login");
+          return;
+        }
+
+        if (!response.ok) {
+          setLineupPlayerCount(
+            null
+          );
+
+          return;
+        }
+
+        const lineup:
+          Player[] =
+            await response.json();
+
+        setLineupPlayerCount(
+          lineup.length
+        );
+      } catch {
+        setLineupPlayerCount(
+          null
+        );
+      } finally {
+        setLoadingLineup(false);
+      }
+    }
+
+    loadLineupStatus();
+  }, [
+    myTeam,
+    matchups,
+    router,
+  ]);
 
   if (loading) {
     return (
@@ -195,9 +363,9 @@ export default function LeaguePage() {
         <Navbar />
 
         <div className="mx-auto max-w-7xl px-6 py-12">
-          <p className="text-zinc-400">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center text-zinc-400">
             Loading league...
-          </p>
+          </div>
         </div>
       </main>
     );
@@ -210,66 +378,55 @@ export default function LeaguePage() {
 
         <div className="mx-auto max-w-7xl px-6 py-12">
           <div className="rounded-2xl border border-red-900 bg-red-950/30 p-6 text-red-400">
-            {error || "League not found."}
+            {error ||
+              "League not found."}
           </div>
         </div>
       </main>
     );
   }
 
-  const hasRosters = rosters.some(
-    (roster) =>
-      roster.players.length > 0
-  );
+  const hasRosters =
+    rosters.some(
+      (roster) =>
+        roster.players.length > 0
+    );
 
   /*
-   * Current fantasy week
+   * ---------------------------------------
+   * STANDINGS
+   * ---------------------------------------
    */
-  const currentWeek =
-    matchups.length > 0
-      ? Math.max(
-          ...matchups.map(
-            (matchup) =>
-              matchup.event.seasonWeek
-          )
-        )
-      : null;
 
-  const currentMatchups =
-    currentWeek === null
-      ? []
-      : matchups.filter(
-          (matchup) =>
-            matchup.event.seasonWeek ===
-            currentWeek
-        );
-
-  /*
-   * Standings
-   */
   const standingsMap =
     new Map<number, Standing>();
 
-  league.members.forEach((member) => {
-    standingsMap.set(member.id, {
-      teamId: member.id,
-      teamName: member.teamName,
-      wins: 0,
-      losses: 0,
-      ties: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
-    });
-  });
+  league.members.forEach(
+    (member) => {
+      standingsMap.set(
+        member.id,
+        {
+          teamId:
+            member.id,
 
-  /*
-   * Only FINAL Regionals count toward
-   * official standings.
-   */
+          teamName:
+            member.teamName,
+
+          wins: 0,
+          losses: 0,
+          ties: 0,
+          pointsFor: 0,
+          pointsAgainst: 0,
+        }
+      );
+    }
+  );
+
   matchups
     .filter(
       (matchup) =>
-        matchup.event.status === "Final"
+        matchup.event.status ===
+        "Final"
     )
     .forEach((matchup) => {
       const teamOne =
@@ -282,7 +439,10 @@ export default function LeaguePage() {
           matchup.teamTwo.id
         );
 
-      if (!teamOne || !teamTwo) {
+      if (
+        !teamOne ||
+        !teamTwo
+      ) {
         return;
       }
 
@@ -320,12 +480,24 @@ export default function LeaguePage() {
     Array.from(
       standingsMap.values()
     ).sort((a, b) => {
-      if (b.wins !== a.wins) {
-        return b.wins - a.wins;
+      if (
+        b.wins !==
+        a.wins
+      ) {
+        return (
+          b.wins -
+          a.wins
+        );
       }
 
-      if (b.ties !== a.ties) {
-        return b.ties - a.ties;
+      if (
+        b.ties !==
+        a.ties
+      ) {
+        return (
+          b.ties -
+          a.ties
+        );
       }
 
       return (
@@ -334,14 +506,300 @@ export default function LeaguePage() {
       );
     });
 
+  /*
+   * ---------------------------------------
+   * MY TEAM
+   * ---------------------------------------
+   */
+
+  const myStanding =
+    myTeam
+      ? standings.find(
+          (standing) =>
+            standing.teamId ===
+            myTeam.teamId
+        ) ?? null
+      : null;
+
+  const myRank =
+    myTeam
+      ? standings.findIndex(
+          (standing) =>
+            standing.teamId ===
+            myTeam.teamId
+        ) + 1
+      : 0;
+
+  /*
+   * ---------------------------------------
+   * FEATURED EVENT
+   * ---------------------------------------
+   */
+
+  const featuredEvent =
+    getFeaturedEvent(
+      matchups
+    );
+
+  const featuredMatchups =
+    featuredEvent
+      ? matchups.filter(
+          (matchup) =>
+            matchup.event.id ===
+            featuredEvent.id
+        )
+      : [];
+
+  /*
+   * ---------------------------------------
+   * MY FEATURED MATCHUP
+   * ---------------------------------------
+   */
+
+  const myFeaturedMatchup =
+    myTeam
+      ? featuredMatchups.find(
+          (matchup) =>
+            matchup.teamOne.id ===
+              myTeam.teamId ||
+            matchup.teamTwo.id ===
+              myTeam.teamId
+        ) ?? null
+      : null;
+
+  const myFeaturedSide =
+    myFeaturedMatchup &&
+    myTeam
+      ? myFeaturedMatchup
+            .teamOne.id ===
+          myTeam.teamId
+        ? myFeaturedMatchup
+            .teamOne
+        : myFeaturedMatchup
+            .teamTwo
+      : null;
+
+  const opponentSide =
+    myFeaturedMatchup &&
+    myTeam
+      ? myFeaturedMatchup
+            .teamOne.id ===
+          myTeam.teamId
+        ? myFeaturedMatchup
+            .teamTwo
+        : myFeaturedMatchup
+            .teamOne
+      : null;
+
+  /*
+   * ---------------------------------------
+   * RECENT RESULT
+   * ---------------------------------------
+   */
+
+  const myFinalMatchups =
+    myTeam
+      ? matchups
+          .filter(
+            (matchup) =>
+              matchup.event
+                .status ===
+                "Final" &&
+              (
+                matchup.teamOne
+                  .id ===
+                  myTeam.teamId ||
+                matchup.teamTwo
+                  .id ===
+                  myTeam.teamId
+              )
+          )
+          .sort(
+            (a, b) =>
+              b.event
+                .seasonWeek -
+              a.event
+                .seasonWeek
+          )
+      : [];
+
+  const recentResult =
+    myFinalMatchups[0] ??
+    null;
+
+  function getMyResultText(
+    matchup: Matchup
+  ) {
+    if (!myTeam) {
+      return "";
+    }
+
+    const mine =
+      matchup.teamOne.id ===
+      myTeam.teamId
+        ? matchup.teamOne
+        : matchup.teamTwo;
+
+    const opponent =
+      matchup.teamOne.id ===
+      myTeam.teamId
+        ? matchup.teamTwo
+        : matchup.teamOne;
+
+    if (
+      mine.score >
+      opponent.score
+    ) {
+      return "WIN";
+    }
+
+    if (
+      mine.score <
+      opponent.score
+    ) {
+      return "LOSS";
+    }
+
+    return "TIE";
+  }
+
+  function getStatusClass(
+    status: string
+  ) {
+    if (
+      status === "Live"
+    ) {
+      return "border-red-500/40 bg-red-950/30 text-red-400";
+    }
+
+    if (
+      status === "Final"
+    ) {
+      return "border-green-500/40 bg-green-950/30 text-green-400";
+    }
+
+    return "border-yellow-400/30 bg-yellow-400/5 text-yellow-400";
+  }
+
+  /*
+   * ---------------------------------------
+   * LINEUP DISPLAY
+   * ---------------------------------------
+   */
+
+  function getLineupStatusText() {
+    if (!featuredEvent) {
+      return "No Event";
+    }
+
+    if (
+      loadingLineup
+    ) {
+      return "Checking...";
+    }
+
+    if (
+      featuredEvent.status !==
+      "Upcoming"
+    ) {
+      if (
+        lineupPlayerCount === 6
+      ) {
+        return "Locked";
+      }
+
+      return "No Lineup";
+    }
+
+    if (
+      lineupPlayerCount === 6
+    ) {
+      return "Ready";
+    }
+
+    if (
+      lineupPlayerCount &&
+      lineupPlayerCount > 0
+    ) {
+      return "Incomplete";
+    }
+
+    return "Not Set";
+  }
+
+  function getLineupStatusClass() {
+    if (!featuredEvent) {
+      return "text-zinc-500";
+    }
+
+    if (
+      loadingLineup
+    ) {
+      return "text-zinc-400";
+    }
+
+    if (
+      featuredEvent.status !==
+      "Upcoming"
+    ) {
+      return "text-zinc-300";
+    }
+
+    if (
+      lineupPlayerCount === 6
+    ) {
+      return "text-green-400";
+    }
+
+    return "text-yellow-400";
+  }
+
+  function getLineupButtonText() {
+    if (!featuredEvent) {
+      return "No Event";
+    }
+
+    if (
+      featuredEvent.status ===
+      "Live"
+    ) {
+      return "View Locked Lineup 🔒";
+    }
+
+    if (
+      featuredEvent.status ===
+      "Final"
+    ) {
+      return "View Final Lineup";
+    }
+
+    if (
+      lineupPlayerCount === 6
+    ) {
+      return "Edit Starting 6";
+    }
+
+    return "Set Starting 6";
+  }
+
+  /*
+   * ---------------------------------------
+   * GENERATE SCHEDULE
+   * ---------------------------------------
+   */
+
   async function handleGenerateSchedule() {
-    if (!league || !myTeam?.isCommissioner) {
+    if (
+      !league ||
+      !myTeam?.isCommissioner
+    ) {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Generate the fantasy schedule? Existing pairings will be regenerated."
-    );
+    const confirmed =
+      window.confirm(
+        "Generate the fantasy schedule? Existing eligible pairings may be regenerated."
+      );
 
     if (!confirmed) {
       return;
@@ -352,30 +810,39 @@ export default function LeaguePage() {
     setError("");
 
     try {
-      const response = await apiFetch(
-        `/api/matchups/generate/${league.id}`,
-        {
-          method: "POST",
-        }
-      );
+      const response =
+        await apiFetch(
+          `/api/matchups/generate/${league.id}`,
+          {
+            method: "POST",
+          }
+        );
 
       if (!response.ok) {
-        const text = await response.text();
+        const text =
+          await response.text();
 
         throw new Error(
-          text || "Could not generate schedule."
+          text ||
+            "Could not generate schedule."
         );
       }
 
-      const matchupsResponse = await fetch(
-        `http://localhost:5255/api/matchups/league/${league.id}`
-      );
+      const matchupsResponse =
+        await fetch(
+          `http://localhost:5255/api/matchups/league/${league.id}`
+        );
 
-      if (matchupsResponse.ok) {
-        const matchupData: Matchup[] =
-          await matchupsResponse.json();
+      if (
+        matchupsResponse.ok
+      ) {
+        const matchupData:
+          Matchup[] =
+            await matchupsResponse.json();
 
-        setMatchups(matchupData);
+        setMatchups(
+          matchupData
+        );
       }
 
       setScheduleMessage(
@@ -388,7 +855,9 @@ export default function LeaguePage() {
           : "Could not generate schedule."
       );
     } finally {
-      setGeneratingSchedule(false);
+      setGeneratingSchedule(
+        false
+      );
     }
   }
 
@@ -397,7 +866,9 @@ export default function LeaguePage() {
       <Navbar />
 
       <div className="mx-auto max-w-7xl px-6 py-10">
-        {/* League Header */}
+
+        {/* LEAGUE HEADER */}
+
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
@@ -408,25 +879,42 @@ export default function LeaguePage() {
               {league.name}
             </h1>
 
-            <p className="mt-3 text-zinc-400">
-              {league.members.length} of{" "}
-              {league.maxTeams} teams
-            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-zinc-400">
+              <span>
+                {
+                  league.members
+                    .length
+                }{" "}
+                of{" "}
+                {
+                  league.maxTeams
+                }{" "}
+                teams
+              </span>
 
-            {myTeam && (
-              <p className="mt-2 text-sm text-zinc-500">
-                Your Team:{" "}
-                <span className="font-bold text-white">
-                  {myTeam.teamName}
-                </span>
-
-                {myTeam.isCommissioner && (
-                  <span className="ml-2 text-yellow-400">
-                    • Commissioner
+              {myTeam && (
+                <>
+                  <span className="text-zinc-700">
+                    •
                   </span>
-                )}
-              </p>
-            )}
+
+                  <span>
+                    Your Team:{" "}
+                    <strong className="text-white">
+                      {
+                        myTeam.teamName
+                      }
+                    </strong>
+                  </span>
+
+                  {myTeam.isCommissioner && (
+                    <span className="rounded-full bg-yellow-400/10 px-2 py-1 text-xs font-bold text-yellow-400">
+                      Commissioner
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -449,13 +937,18 @@ export default function LeaguePage() {
               myTeam?.isCommissioner && (
                 <button
                   type="button"
-                  onClick={handleGenerateSchedule}
-                  disabled={generatingSchedule}
+                  onClick={
+                    handleGenerateSchedule
+                  }
+                  disabled={
+                    generatingSchedule
+                  }
                   className="rounded-xl border border-yellow-400 px-6 py-3 font-bold text-yellow-400 transition hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {generatingSchedule
                     ? "Generating..."
-                    : matchups.length > 0
+                    : matchups.length >
+                        0
                       ? "Regenerate Schedule"
                       : "Generate Schedule"}
                 </button>
@@ -469,7 +962,334 @@ export default function LeaguePage() {
           </div>
         )}
 
-        {/* League Summary */}
+        {error && (
+          <div className="mt-6 rounded-xl border border-red-900 bg-red-950/30 p-4 text-red-400">
+            {error}
+          </div>
+        )}
+
+        {/* TEAM DASHBOARD */}
+
+        {hasRosters &&
+          myTeam && (
+            <section className="mt-8">
+              <div className="mb-4">
+                <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
+                  Team Dashboard
+                </p>
+
+                <h2 className="mt-1 text-3xl font-black">
+                  {
+                    myTeam.teamName
+                  }
+                </h2>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+
+                {/* RECORD */}
+
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+                  <p className="text-sm font-semibold text-zinc-500">
+                    Record
+                  </p>
+
+                  <p className="mt-3 text-3xl font-black">
+                    {myStanding
+                      ? `${myStanding.wins}-${myStanding.losses}-${myStanding.ties}`
+                      : "0-0-0"}
+                  </p>
+
+                  <p className="mt-2 text-sm text-zinc-500">
+                    {myRank > 0
+                      ? `#${myRank} in league`
+                      : "Not ranked"}
+                  </p>
+                </div>
+
+                {/* REGIONAL */}
+
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+                  <p className="text-sm font-semibold text-zinc-500">
+                    {featuredEvent
+                      ?.status ===
+                    "Upcoming"
+                      ? "Next Regional"
+                      : featuredEvent
+                            ?.status ===
+                          "Live"
+                        ? "Current Regional"
+                        : "Latest Regional"}
+                  </p>
+
+                  <p className="mt-3 text-xl font-black">
+                    {featuredEvent
+                      ? featuredEvent.name
+                      : "No event"}
+                  </p>
+
+                  {featuredEvent && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="text-sm text-zinc-500">
+                        Week{" "}
+                        {
+                          featuredEvent.seasonWeek
+                        }
+                      </span>
+
+                      <span
+                        className={`rounded-full border px-2 py-1 text-xs font-black uppercase ${getStatusClass(
+                          featuredEvent.status
+                        )}`}
+                      >
+                        {
+                          featuredEvent.status
+                        }
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* LINEUP */}
+
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+                  <p className="text-sm font-semibold text-zinc-500">
+                    Starting 6
+                  </p>
+
+                  <p
+                    className={`mt-3 text-2xl font-black ${getLineupStatusClass()}`}
+                  >
+                    {getLineupStatusText()}
+                  </p>
+
+                  <p className="mt-2 text-sm text-zinc-500">
+                    {loadingLineup
+                      ? "Checking lineup..."
+                      : lineupPlayerCount !==
+                          null
+                        ? `${lineupPlayerCount}/6 selected`
+                        : "No lineup data"}
+                  </p>
+
+                  {featuredEvent &&
+                    myFeaturedMatchup && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(
+                            `/league/${id}/lineup?eventId=${featuredEvent.id}&teamId=${myTeam.teamId}`
+                          )
+                        }
+                        className={`mt-4 w-full rounded-lg px-3 py-2 text-sm font-bold transition ${
+                          featuredEvent.status ===
+                          "Upcoming"
+                            ? "bg-yellow-400 text-black hover:bg-yellow-300"
+                            : "border border-zinc-700 bg-black text-white hover:border-yellow-400"
+                        }`}
+                      >
+                        {getLineupButtonText()}
+                      </button>
+                    )}
+                </div>
+
+                {/* OPPONENT */}
+
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+                  <p className="text-sm font-semibold text-zinc-500">
+                    Opponent
+                  </p>
+
+                  <p className="mt-3 text-xl font-black">
+                    {opponentSide
+                      ? opponentSide.name
+                      : "—"}
+                  </p>
+
+                  <p className="mt-2 text-sm text-zinc-500">
+                    {myFeaturedMatchup
+                      ? `Week ${myFeaturedMatchup.event.seasonWeek}`
+                      : "No matchup scheduled"}
+                  </p>
+                </div>
+
+                {/* RECENT RESULT */}
+
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+                  <p className="text-sm font-semibold text-zinc-500">
+                    Recent Result
+                  </p>
+
+                  {recentResult ? (
+                    <>
+                      <p
+                        className={`mt-3 text-3xl font-black ${
+                          getMyResultText(
+                            recentResult
+                          ) ===
+                          "WIN"
+                            ? "text-green-400"
+                            : getMyResultText(
+                                  recentResult
+                                ) ===
+                                "LOSS"
+                              ? "text-red-400"
+                              : "text-zinc-300"
+                        }`}
+                      >
+                        {getMyResultText(
+                          recentResult
+                        )}
+                      </p>
+
+                      <p className="mt-2 text-sm text-zinc-500">
+                        {
+                          recentResult
+                            .event.name
+                        }
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-3 text-3xl font-black text-zinc-600">
+                        —
+                      </p>
+
+                      <p className="mt-2 text-sm text-zinc-500">
+                        No completed matchups
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+        {/* CURRENT MATCHUP */}
+
+        {hasRosters &&
+          myTeam &&
+          featuredEvent && (
+            <section className="mt-8">
+              <div className="mb-4 flex flex-col justify-between gap-3 md:flex-row md:items-end">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
+                    Your Matchup
+                  </p>
+
+                  <h2 className="mt-1 text-3xl font-black">
+                    {
+                      featuredEvent.name
+                    }
+                  </h2>
+                </div>
+
+                <span
+                  className={`w-fit rounded-full border px-3 py-1 text-xs font-black uppercase ${getStatusClass(
+                    featuredEvent.status
+                  )}`}
+                >
+                  {
+                    featuredEvent.status
+                  }
+                </span>
+              </div>
+
+              {myFeaturedMatchup &&
+              myFeaturedSide &&
+              opponentSide ? (
+                <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      router.push(
+                        `/matchup/${myFeaturedMatchup.id}`
+                      )
+                    }
+                    className="w-full p-6 text-left transition hover:bg-zinc-800/40 md:p-8"
+                  >
+                    <div className="grid items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
+
+                      <div className="text-center md:text-right">
+                        <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
+                          Your Team
+                        </p>
+
+                        <p className="mt-2 text-2xl font-black">
+                          {
+                            myFeaturedSide.name
+                          }
+                        </p>
+
+                        <p className="mt-3 text-5xl font-black text-yellow-400">
+                          {
+                            myFeaturedSide.score
+                          }
+                        </p>
+                      </div>
+
+                      <div className="text-center">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-zinc-700 bg-black text-sm font-black text-zinc-500">
+                          VS
+                        </div>
+                      </div>
+
+                      <div className="text-center md:text-left">
+                        <p className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+                          Opponent
+                        </p>
+
+                        <p className="mt-2 text-2xl font-black">
+                          {
+                            opponentSide.name
+                          }
+                        </p>
+
+                        <p className="mt-3 text-5xl font-black">
+                          {
+                            opponentSide.score
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="mt-6 text-center text-sm text-zinc-500">
+                      Click to view scoring
+                      breakdown
+                    </p>
+                  </button>
+
+                  <div className="border-t border-zinc-800 p-4">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        router.push(
+                          `/league/${id}/lineup?eventId=${featuredEvent.id}&teamId=${myTeam.teamId}`
+                        )
+                      }
+                      className={`w-full rounded-xl px-5 py-3 font-bold transition ${
+                        featuredEvent.status ===
+                        "Upcoming"
+                          ? "bg-yellow-400 text-black hover:bg-yellow-300"
+                          : "border border-zinc-700 bg-zinc-950 text-white hover:border-yellow-400"
+                      }`}
+                    >
+                      {getLineupButtonText()}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center text-zinc-500">
+                  You do not have a matchup
+                  scheduled for this event.
+                </div>
+              )}
+            </section>
+          )}
+
+        {/* LEAGUE INFO */}
+
         <div className="mt-8 grid gap-6 md:grid-cols-3">
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
             <p className="text-sm font-semibold text-yellow-400">
@@ -477,11 +1297,14 @@ export default function LeaguePage() {
             </p>
 
             <p className="mt-3 text-3xl font-black tracking-widest">
-              {league.inviteCode}
+              {
+                league.inviteCode
+              }
             </p>
 
             <p className="mt-3 text-sm text-zinc-500">
-              Share this code with friends.
+              Share this code with
+              friends.
             </p>
           </section>
 
@@ -491,8 +1314,14 @@ export default function LeaguePage() {
             </p>
 
             <p className="mt-3 text-3xl font-black">
-              {league.members.length}/
-              {league.maxTeams}
+              {
+                league.members
+                  .length
+              }
+              /
+              {
+                league.maxTeams
+              }
             </p>
 
             <p className="mt-3 text-sm text-zinc-500">
@@ -502,7 +1331,7 @@ export default function LeaguePage() {
 
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
             <p className="text-sm font-semibold text-yellow-400">
-              Status
+              Season
             </p>
 
             <p
@@ -513,123 +1342,120 @@ export default function LeaguePage() {
               }`}
             >
               {hasRosters
-                ? "Season Active"
+                ? "Active"
                 : "Pre-Draft"}
             </p>
 
             <p className="mt-3 text-sm text-zinc-500">
               {hasRosters
-                ? "Rosters are locked in."
+                ? "Fantasy season underway."
                 : "Waiting for the draft."}
             </p>
           </section>
         </div>
 
-        {/* Current Matchups */}
-        {currentMatchups.length > 0 && (
-          <section className="mt-8">
-            <div className="mb-6 flex items-end justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
-                  Fantasy Week{" "}
-                  {currentWeek}
-                </p>
+        {/* FEATURED EVENT MATCHUPS */}
 
-                <h2 className="mt-1 text-3xl font-black">
-                  {
-                    currentMatchups[0]
-                      .event.name
-                  }
-                </h2>
+        {featuredMatchups.length >
+          0 && (
+          <section className="mt-10">
+            <div className="mb-6">
+              <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
+                League Matchups
+              </p>
 
-                <p className="mt-2 text-sm text-zinc-500">
-                  Status:{" "}
-                  <span
-                    className={
-                      currentMatchups[0]
-                        .event.status ===
-                      "Live"
-                        ? "font-bold text-red-400"
-                        : currentMatchups[0]
-                              .event.status ===
-                            "Final"
-                          ? "font-bold text-green-400"
-                          : "font-bold text-yellow-400"
-                    }
-                  >
-                    {
-                      currentMatchups[0]
-                        .event.status
-                    }
-                  </span>
-                </p>
-              </div>
+              <h2 className="mt-1 text-3xl font-black">
+                Fantasy Week{" "}
+                {
+                  featuredEvent
+                    ?.seasonWeek
+                }
+              </h2>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
-              {currentMatchups.map(
+              {featuredMatchups.map(
                 (matchup) => {
                   const teamOneWon =
-                    matchup.teamOne.score >
-                    matchup.teamTwo.score;
+                    matchup.teamOne
+                      .score >
+                    matchup.teamTwo
+                      .score;
 
                   const teamTwoWon =
-                    matchup.teamTwo.score >
-                    matchup.teamOne.score;
+                    matchup.teamTwo
+                      .score >
+                    matchup.teamOne
+                      .score;
 
                   const tied =
-                    matchup.teamOne.score ===
-                    matchup.teamTwo.score;
+                    matchup.teamOne
+                      .score ===
+                    matchup.teamTwo
+                      .score;
 
                   const isMyMatchup =
                     myTeam !== null &&
-                    (matchup.teamOne.id ===
-                      myTeam.teamId ||
-                      matchup.teamTwo.id ===
-                        myTeam.teamId);
+                    (
+                      matchup.teamOne
+                        .id ===
+                        myTeam.teamId ||
+                      matchup.teamTwo
+                        .id ===
+                        myTeam.teamId
+                    );
 
                   return (
-                    <div
-                      key={matchup.id}
-                      className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900"
+                    <button
+                      type="button"
+                      key={
+                        matchup.id
+                      }
+                      onClick={() =>
+                        router.push(
+                          `/matchup/${matchup.id}`
+                        )
+                      }
+                      className={`overflow-hidden rounded-2xl border bg-zinc-900 text-left transition hover:bg-zinc-800/40 ${
+                        isMyMatchup
+                          ? "border-yellow-400"
+                          : "border-zinc-800"
+                      }`}
                     >
-                      {/* Matchup header */}
                       <div className="border-b border-zinc-800 px-6 py-4">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold text-yellow-400">
                             Week{" "}
                             {
-                              matchup.event
+                              matchup
+                                .event
                                 .seasonWeek
                             }
                           </p>
 
                           <span className="text-xs font-bold uppercase text-zinc-500">
                             {
-                              matchup.event
+                              matchup
+                                .event
                                 .status
                             }
                           </span>
                         </div>
                       </div>
 
-                      {/* Clickable matchup */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          router.push(
-                            `/matchup/${matchup.id}`
-                          )
-                        }
-                        className="w-full p-6 text-left transition hover:bg-zinc-800/40"
-                      >
-                        <div className="flex items-center justify-between gap-6">
+                      <div className="p-6">
+                        <div className="flex items-center justify-between gap-5">
                           <div>
                             <p
                               className={`font-bold ${
-                                teamOneWon
+                                teamOneWon &&
+                                matchup
+                                  .event
+                                  .status ===
+                                  "Final"
                                   ? "text-green-400"
-                                  : myTeam?.teamId ===
+                                  : myTeam
+                                        ?.teamId ===
                                       matchup
                                         .teamOne
                                         .id
@@ -653,16 +1479,21 @@ export default function LeaguePage() {
                             </p>
                           </div>
 
-                          <p className="text-sm font-bold text-zinc-600">
+                          <span className="text-xs font-black text-zinc-600">
                             VS
-                          </p>
+                          </span>
 
                           <div className="text-right">
                             <p
                               className={`font-bold ${
-                                teamTwoWon
+                                teamTwoWon &&
+                                matchup
+                                  .event
+                                  .status ===
+                                  "Final"
                                   ? "text-green-400"
-                                  : myTeam?.teamId ===
+                                  : myTeam
+                                        ?.teamId ===
                                       matchup
                                         .teamTwo
                                         .id
@@ -687,63 +1518,30 @@ export default function LeaguePage() {
                           </div>
                         </div>
 
-                        <div className="mt-6 border-t border-zinc-800 pt-4 text-center text-sm">
-                          {tied ? (
-                            <span className="text-zinc-500">
-                              Matchup tied
-                            </span>
-                          ) : (
-                            <span className="font-semibold text-green-400">
-                              {teamOneWon
-                                ? matchup
-                                    .teamOne
-                                    .name
-                                : matchup
-                                    .teamTwo
-                                    .name}{" "}
-                              leads
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="mt-3 text-center text-xs text-zinc-600">
-                          Click to view matchup
-                          details
-                        </p>
-                      </button>
-
-                      {/* My Team Controls */}
-                      {myTeam &&
-                        isMyMatchup && (
-                          <div className="border-t border-zinc-800 p-4">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                router.push(
-                                  `/league/${id}/lineup?eventId=${matchup.event.id}&teamId=${myTeam.teamId}`
-                                )
-                              }
-                              className={`w-full rounded-xl px-4 py-3 font-bold transition ${
-                                matchup.event
-                                  .status ===
-                                "Upcoming"
-                                  ? "bg-yellow-400 text-black hover:bg-yellow-300"
-                                  : "border border-zinc-700 bg-zinc-950 text-white hover:border-yellow-400"
-                              }`}
-                            >
-                              {matchup.event
-                                .status ===
-                              "Upcoming"
-                                ? "Set Lineup"
-                                : matchup.event
-                                      .status ===
-                                    "Live"
-                                  ? "View Lineup 🔒"
-                                  : "View Final Lineup"}
-                            </button>
-                          </div>
+                        {matchup.event
+                          .status ===
+                          "Final" && (
+                          <p className="mt-5 border-t border-zinc-800 pt-4 text-center text-sm">
+                            {tied ? (
+                              <span className="text-zinc-500">
+                                Final • Tie
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-green-400">
+                                {teamOneWon
+                                  ? matchup
+                                      .teamOne
+                                      .name
+                                  : matchup
+                                      .teamTwo
+                                      .name}{" "}
+                                wins
+                              </span>
+                            )}
+                          </p>
                         )}
-                    </div>
+                      </div>
+                    </button>
                   );
                 }
               )}
@@ -751,10 +1549,11 @@ export default function LeaguePage() {
           </section>
         )}
 
-        {/* Standings */}
+        {/* STANDINGS */}
+
         {hasRosters &&
           standings.length > 0 && (
-            <section className="mt-8">
+            <section className="mt-10">
               <div className="mb-6">
                 <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
                   League
@@ -877,9 +1676,10 @@ export default function LeaguePage() {
             </section>
           )}
 
-        {/* Rosters */}
+        {/* ROSTERS */}
+
         {hasRosters ? (
-          <section className="mt-8">
+          <section className="mt-10">
             <div className="mb-6">
               <p className="text-sm font-semibold uppercase tracking-wider text-yellow-400">
                 Season Rosters
@@ -922,7 +1722,7 @@ export default function LeaguePage() {
                       <div className="border-b border-zinc-800 p-6">
                         <div className="flex items-start justify-between gap-4">
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <h3 className="text-2xl font-black">
                                 {
                                   roster
@@ -933,8 +1733,7 @@ export default function LeaguePage() {
 
                               {isMine && (
                                 <span className="rounded-full bg-yellow-400 px-2 py-1 text-xs font-black text-black">
-                                  YOUR
-                                  TEAM
+                                  YOUR TEAM
                                 </span>
                               )}
                             </div>
@@ -956,69 +1755,56 @@ export default function LeaguePage() {
                             </p>
 
                             <p className="text-xs text-zinc-500">
-                              Fantasy
-                              Points
+                              Fantasy Points
                             </p>
                           </div>
                         </div>
                       </div>
 
                       <div>
-                        {roster.players
-                          .length ===
-                        0 ? (
-                          <div className="p-6 text-sm text-zinc-500">
-                            No players on
-                            this roster.
-                          </div>
-                        ) : (
-                          roster.players.map(
-                            (
-                              player
-                            ) => (
-                              <div
-                                key={
-                                  player.id
-                                }
-                                className="flex items-center justify-between border-b border-zinc-800 px-6 py-5 last:border-b-0"
-                              >
-                                <div>
-                                  <div className="flex items-center gap-3">
-                                    <span className="font-bold text-yellow-400">
-                                      #
-                                      {
-                                        player.seasonStartingRank
-                                      }
-                                    </span>
-
-                                    <p className="font-bold">
-                                      {
-                                        player.name
-                                      }
-                                    </p>
-                                  </div>
-
-                                  <p className="mt-1 text-sm text-zinc-500">
+                        {roster.players.map(
+                          (player) => (
+                            <div
+                              key={
+                                player.id
+                              }
+                              className="flex items-center justify-between border-b border-zinc-800 px-6 py-5 last:border-b-0"
+                            >
+                              <div>
+                                <div className="flex items-center gap-3">
+                                  <span className="font-bold text-yellow-400">
+                                    #
                                     {
-                                      player.country
+                                      player.seasonStartingRank
+                                    }
+                                  </span>
+
+                                  <p className="font-bold">
+                                    {
+                                      player.name
                                     }
                                   </p>
                                 </div>
 
-                                <div className="text-right">
-                                  <p className="font-black">
-                                    {
-                                      player.fantasyPoints
-                                    }
-                                  </p>
-
-                                  <p className="text-xs text-zinc-500">
-                                    Fantasy
-                                    Pts
-                                  </p>
-                                </div>
+                                <p className="mt-1 text-sm text-zinc-500">
+                                  {
+                                    player.country
+                                  }
+                                </p>
                               </div>
-                            )
+
+                              <div className="text-right">
+                                <p className="font-black">
+                                  {
+                                    player.fantasyPoints
+                                  }
+                                </p>
+
+                                <p className="text-xs text-zinc-500">
+                                  Fantasy Pts
+                                </p>
+                              </div>
+                            </div>
                           )
                         )}
                       </div>
@@ -1029,8 +1815,9 @@ export default function LeaguePage() {
             </div>
           </section>
         ) : (
-          /* Pre-Draft Members */
-          <section className="mt-8 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+          /* PRE-DRAFT */
+
+          <section className="mt-10 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
             <div className="border-b border-zinc-800 p-6">
               <p className="text-sm font-semibold text-yellow-400">
                 Managers
@@ -1119,14 +1906,12 @@ export default function LeaguePage() {
                       </div>
 
                       <span className="text-zinc-500">
-                        Open Team
-                        Slot
+                        Open Team Slot
                       </span>
                     </div>
 
                     <span className="text-sm text-zinc-600">
-                      Waiting for
-                      manager
+                      Waiting for manager
                     </span>
                   </div>
                 )

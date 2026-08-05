@@ -1,8 +1,8 @@
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
 namespace backend.Controllers;
@@ -18,61 +18,151 @@ public class MatchupsController : ControllerBase
         _context = context;
     }
 
+    /*
+     * Manually create a matchup.
+     * Commissioner only.
+     */
+    [Authorize]
     [HttpPost]
     public async Task<ActionResult> CreateMatchup(
         CreateMatchupRequest request)
     {
+        var userId = GetCurrentUserId();
+
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
         var league = await _context.Leagues
-            .FirstOrDefaultAsync(l => l.Id == request.LeagueId);
+            .Include(l => l.Members)
+            .FirstOrDefaultAsync(l =>
+                l.Id == request.LeagueId
+            );
 
         if (league == null)
         {
-            return NotFound("League not found.");
+            return NotFound(
+                "League not found."
+            );
         }
 
-        var regionalEvent = await _context.RegionalEvents
-            .FirstOrDefaultAsync(e => e.Id == request.RegionalEventId);
+        var commissioner =
+            league.Members.FirstOrDefault(member =>
+                member.UserId == userId.Value &&
+                member.IsCommissioner
+            );
+
+        if (commissioner == null)
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Only the league commissioner can create matchups."
+            );
+        }
+
+        var regionalEvent =
+            await _context.RegionalEvents
+                .FirstOrDefaultAsync(e =>
+                    e.Id ==
+                    request.RegionalEventId
+                );
 
         if (regionalEvent == null)
         {
-            return NotFound("Regional event not found.");
+            return NotFound(
+                "Regional event not found."
+            );
         }
 
-        var teamOne = await _context.LeagueMembers
-            .FirstOrDefaultAsync(m =>
-                m.Id == request.TeamOneId &&
-                m.LeagueId == request.LeagueId
-            );
+        var teamOne =
+            await _context.LeagueMembers
+                .FirstOrDefaultAsync(m =>
+                    m.Id ==
+                        request.TeamOneId &&
+                    m.LeagueId ==
+                        request.LeagueId
+                );
 
-        var teamTwo = await _context.LeagueMembers
-            .FirstOrDefaultAsync(m =>
-                m.Id == request.TeamTwoId &&
-                m.LeagueId == request.LeagueId
-            );
+        var teamTwo =
+            await _context.LeagueMembers
+                .FirstOrDefaultAsync(m =>
+                    m.Id ==
+                        request.TeamTwoId &&
+                    m.LeagueId ==
+                        request.LeagueId
+                );
 
-        if (teamOne == null || teamTwo == null)
+        if (
+            teamOne == null ||
+            teamTwo == null
+        )
         {
             return BadRequest(
                 "Both teams must belong to this league."
             );
         }
 
-        if (teamOne.Id == teamTwo.Id)
+        if (
+            teamOne.Id ==
+            teamTwo.Id
+        )
         {
             return BadRequest(
                 "A team cannot play against itself."
             );
         }
 
-        var matchup = new Matchup
-        {
-            LeagueId = request.LeagueId,
-            RegionalEventId = request.RegionalEventId,
-            TeamOneId = request.TeamOneId,
-            TeamTwoId = request.TeamTwoId
-        };
+        var duplicateExists =
+            await _context.Matchups
+                .AnyAsync(m =>
+                    m.LeagueId ==
+                        request.LeagueId &&
+                    m.RegionalEventId ==
+                        request.RegionalEventId &&
+                    (
+                        (
+                            m.TeamOneId ==
+                                request.TeamOneId &&
+                            m.TeamTwoId ==
+                                request.TeamTwoId
+                        )
+                        ||
+                        (
+                            m.TeamOneId ==
+                                request.TeamTwoId &&
+                            m.TeamTwoId ==
+                                request.TeamOneId
+                        )
+                    )
+                );
 
-        _context.Matchups.Add(matchup);
+        if (duplicateExists)
+        {
+            return BadRequest(
+                "This matchup already exists for this Regional."
+            );
+        }
+
+        var matchup =
+            new Matchup
+            {
+                LeagueId =
+                    request.LeagueId,
+
+                RegionalEventId =
+                    request.RegionalEventId,
+
+                TeamOneId =
+                    request.TeamOneId,
+
+                TeamTwoId =
+                    request.TeamTwoId
+            };
+
+        _context.Matchups.Add(
+            matchup
+        );
 
         await _context.SaveChangesAsync();
 
@@ -86,22 +176,83 @@ public class MatchupsController : ControllerBase
         });
     }
 
+    /*
+     * Get matchups for one league.
+     *
+     * IMPORTANT:
+     *
+     * Final matchups with NO submitted lineup
+     * from either team are ignored.
+     *
+     * This prevents accidental/test Regionals
+     * from creating 0-0 ties in standings.
+     */
     [HttpGet("league/{leagueId:int}")]
     public async Task<ActionResult> GetLeagueMatchups(
         int leagueId)
     {
-        var matchups = await _context.Matchups
-            .Where(m => m.LeagueId == leagueId)
-            .Include(m => m.TeamOne)
-            .Include(m => m.TeamTwo)
-            .Include(m => m.RegionalEvent)
-            .OrderBy(m => m.RegionalEvent.SeasonWeek)
-            .ToListAsync();
+        var matchups =
+            await _context.Matchups
+                .Where(m =>
+                    m.LeagueId ==
+                    leagueId
+                )
+                .Include(m =>
+                    m.TeamOne
+                )
+                .Include(m =>
+                    m.TeamTwo
+                )
+                .Include(m =>
+                    m.RegionalEvent
+                )
+                .OrderBy(m =>
+                    m.RegionalEvent
+                        .SeasonWeek
+                )
+                .ToListAsync();
 
-        var response = new List<object>();
+        var response =
+            new List<object>();
 
-        foreach (var matchup in matchups)
+        foreach (
+            var matchup in
+            matchups
+        )
         {
+            /*
+             * Upcoming and Live matchups
+             * should always be displayed.
+             *
+             * For Final events, at least one
+             * team must have submitted a lineup
+             * for the matchup to count/display.
+             */
+            if (
+                matchup.RegionalEvent.Status ==
+                "Final"
+            )
+            {
+                var hasSubmittedLineup =
+                    await _context
+                        .RegionalLineupEntries
+                        .AnyAsync(entry =>
+                            entry.RegionalEventId ==
+                                matchup.RegionalEventId &&
+                            (
+                                entry.LeagueMemberId ==
+                                    matchup.TeamOneId ||
+                                entry.LeagueMemberId ==
+                                    matchup.TeamTwoId
+                            )
+                        );
+
+                if (!hasSubmittedLineup)
+                {
+                    continue;
+                }
+            }
+
             var teamOneScore =
                 await CalculateTeamScore(
                     matchup.TeamOneId,
@@ -119,25 +270,35 @@ public class MatchupsController : ControllerBase
                 matchup.Id,
 
                 Event = new
-    {
-        matchup.RegionalEvent.Id,
-        matchup.RegionalEvent.Name,
-        matchup.RegionalEvent.SeasonWeek,
-        matchup.RegionalEvent.Status
-    },
+                {
+                    matchup.RegionalEvent.Id,
+                    matchup.RegionalEvent.Name,
+                    matchup.RegionalEvent.SeasonWeek,
+                    matchup.RegionalEvent.Status
+                },
 
                 TeamOne = new
                 {
                     matchup.TeamOne.Id,
-                    Name = matchup.TeamOne.TeamName,
-                    Score = teamOneScore
+
+                    Name =
+                        matchup.TeamOne
+                            .TeamName,
+
+                    Score =
+                        teamOneScore
                 },
 
                 TeamTwo = new
                 {
                     matchup.TeamTwo.Id,
-                    Name = matchup.TeamTwo.TeamName,
-                    Score = teamTwoScore
+
+                    Name =
+                        matchup.TeamTwo
+                            .TeamName,
+
+                    Score =
+                        teamTwoScore
                 }
             });
         }
@@ -145,18 +306,34 @@ public class MatchupsController : ControllerBase
         return Ok(response);
     }
 
+    /*
+     * Get one matchup with Starting 6
+     * scoring breakdown.
+     */
     [HttpGet("{id:int}")]
-    public async Task<ActionResult> GetMatchup(int id)
+    public async Task<ActionResult> GetMatchup(
+        int id)
     {
-        var matchup = await _context.Matchups
-            .Include(m => m.TeamOne)
-            .Include(m => m.TeamTwo)
-            .Include(m => m.RegionalEvent)
-            .FirstOrDefaultAsync(m => m.Id == id);
+        var matchup =
+            await _context.Matchups
+                .Include(m =>
+                    m.TeamOne
+                )
+                .Include(m =>
+                    m.TeamTwo
+                )
+                .Include(m =>
+                    m.RegionalEvent
+                )
+                .FirstOrDefaultAsync(m =>
+                    m.Id == id
+                );
 
         if (matchup == null)
         {
-            return NotFound("Matchup not found.");
+            return NotFound(
+                "Matchup not found."
+            );
         }
 
         var teamOnePlayers =
@@ -176,312 +353,535 @@ public class MatchupsController : ControllerBase
             matchup.Id,
 
             Event = new
-    {
-        matchup.RegionalEvent.Id,
-        matchup.RegionalEvent.Name,
-        matchup.RegionalEvent.SeasonWeek,
-        matchup.RegionalEvent.Status
-    },
+            {
+                matchup.RegionalEvent.Id,
+                matchup.RegionalEvent.Name,
+                matchup.RegionalEvent.SeasonWeek,
+                matchup.RegionalEvent.Status
+            },
 
             TeamOne = new
             {
                 matchup.TeamOne.Id,
-                Name = matchup.TeamOne.TeamName,
-                Score = teamOnePlayers.Sum(p => p.FantasyPoints),
-                Players = teamOnePlayers
+
+                Name =
+                    matchup.TeamOne
+                        .TeamName,
+
+                Score =
+                    teamOnePlayers.Sum(
+                        player =>
+                            player.FantasyPoints
+                    ),
+
+                Players =
+                    teamOnePlayers
             },
 
             TeamTwo = new
             {
                 matchup.TeamTwo.Id,
-                Name = matchup.TeamTwo.TeamName,
-                Score = teamTwoPlayers.Sum(p => p.FantasyPoints),
-                Players = teamTwoPlayers
+
+                Name =
+                    matchup.TeamTwo
+                        .TeamName,
+
+                Score =
+                    teamTwoPlayers.Sum(
+                        player =>
+                            player.FantasyPoints
+                    ),
+
+                Players =
+                    teamTwoPlayers
             }
         });
     }
-    
-    [Authorize]
-    [HttpPost("generate/{leagueId:int}")]
-    public async Task<ActionResult> GenerateSchedule(int leagueId)
-    {
-    var userIdClaim =
-        User.FindFirstValue(
-            ClaimTypes.NameIdentifier
-        );
-
-    if (!int.TryParse(
-            userIdClaim,
-            out var userId))
-    {
-        return Unauthorized();
-    }
-
-    var league = await _context.Leagues
-        .Include(l => l.Members)
-        .FirstOrDefaultAsync(l =>
-            l.Id == leagueId
-        );
-
-    if (league == null)
-    {
-        return NotFound(
-            "League not found."
-        );
-    }
-
-    var commissioner =
-        league.Members.FirstOrDefault(member =>
-            member.UserId == userId &&
-            member.IsCommissioner
-        );
-
-    if (commissioner == null)
-    {
-        return StatusCode(
-            StatusCodes.Status403Forbidden,
-            "Only the league commissioner can generate the schedule."
-        );
-    }
-
-    var teams = league.Members
-        .OrderBy(member => member.Id)
-        .ToList();
-
-    if (teams.Count < 2)
-    {
-        return BadRequest(
-            "At least two teams are required to generate a schedule."
-        );
-    }
-
-    var regionalEvents =
-        await _context.RegionalEvents
-            .OrderBy(e => e.SeasonWeek)
-            .ToListAsync();
-
-    if (regionalEvents.Count == 0)
-    {
-        return BadRequest(
-            "No Regional events exist yet."
-        );
-    }
 
     /*
-     * Once any Regional has started, don't allow
-     * the schedule to be regenerated.
+     * Generate/regenerate league schedule.
+     *
+     * Commissioner only.
      */
-    if (regionalEvents.Any(regional =>
-        regional.Status != "Upcoming"))
+    [Authorize]
+    [HttpPost("generate/{leagueId:int}")]
+    public async Task<ActionResult> GenerateSchedule(
+        int leagueId)
     {
-        return BadRequest(
-            "The schedule cannot be regenerated after a Regional has started."
-        );
-    }
+        var userId =
+            GetCurrentUserId();
 
-    var existingMatchups =
-        await _context.Matchups
-            .Where(m =>
-                m.LeagueId == leagueId
-            )
-            .ToListAsync();
-
-    if (existingMatchups.Count > 0)
-    {
-        _context.Matchups.RemoveRange(
-            existingMatchups
-        );
-
-        await _context.SaveChangesAsync();
-    }
-
-    var rounds =
-        GenerateRoundRobinRounds(teams);
-
-    var newMatchups =
-        new List<Matchup>();
-
-    for (
-        int eventIndex = 0;
-        eventIndex < regionalEvents.Count;
-        eventIndex++
-    )
-    {
-        var regionalEvent =
-            regionalEvents[eventIndex];
-
-        var roundIndex =
-            eventIndex % rounds.Count;
-
-        var pairings =
-            rounds[roundIndex];
-
-        foreach (var pairing in pairings)
+        if (userId == null)
         {
-            newMatchups.Add(
-                new Matchup
-                {
-                    LeagueId = leagueId,
+            return Unauthorized();
+        }
 
-                    RegionalEventId =
-                        regionalEvent.Id,
+        var league =
+            await _context.Leagues
+                .Include(l =>
+                    l.Members
+                )
+                .FirstOrDefaultAsync(l =>
+                    l.Id ==
+                    leagueId
+                );
 
-                    TeamOneId =
-                        pairing.TeamOne.Id,
-
-                    TeamTwoId =
-                        pairing.TeamTwo.Id
-                }
+        if (league == null)
+        {
+            return NotFound(
+                "League not found."
             );
         }
-    }
 
-    _context.Matchups.AddRange(
-        newMatchups
-    );
+        var commissioner =
+            league.Members
+                .FirstOrDefault(member =>
+                    member.UserId ==
+                        userId.Value &&
+                    member.IsCommissioner
+                );
 
-    await _context.SaveChangesAsync();
-
-    return Ok(new
-    {
-        LeagueId = leagueId,
-        Teams = teams.Count,
-        Regionals = regionalEvents.Count,
-        MatchupsCreated =
-            newMatchups.Count,
-
-        Message =
-            "Schedule generated successfully."
-    });
-    }
-   
-    
-    private async Task<int> CalculateTeamScore(
-    int leagueMemberId,
-    int regionalEventId)
-{
-    return await _context.RegionalLineupEntries
-        .Where(entry =>
-            entry.LeagueMemberId == leagueMemberId &&
-            entry.RegionalEventId == regionalEventId
-        )
-        .Join(
-            _context.EventResults.Where(result =>
-                result.RegionalEventId == regionalEventId
-            ),
-            lineup => lineup.PlayerId,
-            result => result.PlayerId,
-            (lineup, result) => result.FantasyPoints
-        )
-        .SumAsync();
-
-    }
-
-    private async Task<List<PlayerScoreDto>> GetTeamBreakdown(
-    int leagueMemberId,
-    int regionalEventId)
-    {
-    var lineupPlayers = await _context.RegionalLineupEntries
-        .Where(entry =>
-            entry.LeagueMemberId == leagueMemberId &&
-            entry.RegionalEventId == regionalEventId
-        )
-        .Include(entry => entry.Player)
-        .OrderBy(entry => entry.Player.SeasonPoolOrder)
-        .ToListAsync();
-
-    var results = await _context.EventResults
-        .Where(result =>
-            result.RegionalEventId == regionalEventId
-        )
-        .ToListAsync();
-
-    return lineupPlayers
-        .Select(lineup =>
+        if (commissioner == null)
         {
-            var result = results.FirstOrDefault(result =>
-                result.PlayerId == lineup.PlayerId
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Only the league commissioner can generate the schedule."
+            );
+        }
+
+        var teams =
+            league.Members
+                .OrderBy(member =>
+                    member.Id
+                )
+                .ToList();
+
+        if (teams.Count < 2)
+        {
+            return BadRequest(
+                "At least two teams are required to generate a schedule."
+            );
+        }
+
+        /*
+         * NEW RULE:
+         *
+         * Only Upcoming Regionals can be added
+         * to a newly generated fantasy schedule.
+         *
+         * Old Live/Final test events will NOT
+         * suddenly enter a league schedule.
+         */
+        var regionalEvents =
+            await _context.RegionalEvents
+                .Where(eventItem =>
+                    eventItem.Status ==
+                    "Upcoming"
+                )
+                .OrderBy(eventItem =>
+                    eventItem.SeasonWeek
+                )
+                .ToListAsync();
+
+        if (
+            regionalEvents.Count == 0
+        )
+        {
+            return BadRequest(
+                "There are no Upcoming Regionals available to schedule."
+            );
+        }
+
+        /*
+         * Load the league's existing matchups.
+         */
+        var existingMatchups =
+            await _context.Matchups
+                .Where(m =>
+                    m.LeagueId ==
+                    leagueId
+                )
+                .Include(m =>
+                    m.RegionalEvent
+                )
+                .ToListAsync();
+
+        /*
+         * If a started matchup actually had
+         * lineup activity, treat it as a real
+         * played fantasy matchup and protect it.
+         *
+         * Started test events with no lineup
+         * activity can safely be cleaned up.
+         */
+        foreach (
+            var existingMatchup in
+            existingMatchups
+        )
+        {
+            if (
+                existingMatchup
+                    .RegionalEvent
+                    .Status ==
+                "Upcoming"
+            )
+            {
+                continue;
+            }
+
+            var hasLineup =
+                await _context
+                    .RegionalLineupEntries
+                    .AnyAsync(entry =>
+                        entry.RegionalEventId ==
+                            existingMatchup
+                                .RegionalEventId &&
+                        (
+                            entry.LeagueMemberId ==
+                                existingMatchup
+                                    .TeamOneId ||
+                            entry.LeagueMemberId ==
+                                existingMatchup
+                                    .TeamTwoId
+                        )
+                    );
+
+            if (hasLineup)
+            {
+                return BadRequest(
+                    "This league's schedule cannot be regenerated because a played fantasy matchup has already started."
+                );
+            }
+        }
+
+        /*
+         * Existing accidental/upcoming schedule
+         * can now safely be removed.
+         */
+        if (
+            existingMatchups.Count > 0
+        )
+        {
+            _context.Matchups
+                .RemoveRange(
+                    existingMatchups
+                );
+
+            await _context
+                .SaveChangesAsync();
+        }
+
+        var rounds =
+            GenerateRoundRobinRounds(
+                teams
             );
 
-            return new PlayerScoreDto
-            {
-                PlayerId = lineup.Player.Id,
-                Name = lineup.Player.Name,
-                Placement = result?.Placement,
-                FantasyPoints = result?.FantasyPoints ?? 0
-            };
-        })
-        .ToList();
-    }
- 
-    
-    private static List<List<TeamPairing>>
-    GenerateRoundRobinRounds(
-        List<LeagueMember> leagueTeams)
-    {
-    var teams = new List<LeagueMember?>(leagueTeams);
-
-    // Odd number of teams means one team gets a bye.
-    if (teams.Count % 2 != 0)
-    {
-        teams.Add(null);
-    }
-
-    var teamCount = teams.Count;
-
-    var rounds =
-        new List<List<TeamPairing>>();
-
-    for (int round = 0;
-         round < teamCount - 1;
-         round++)
-    {
-        var pairings =
-            new List<TeamPairing>();
-
-        for (int i = 0;
-             i < teamCount / 2;
-             i++)
+        if (
+            rounds.Count == 0
+        )
         {
-            var teamOne = teams[i];
-            var teamTwo =
-                teams[teamCount - 1 - i];
+            return BadRequest(
+                "Could not generate round-robin pairings."
+            );
+        }
 
-            // A null team represents a bye.
-            if (teamOne != null &&
-                teamTwo != null)
+        var newMatchups =
+            new List<Matchup>();
+
+        for (
+            var eventIndex = 0;
+            eventIndex <
+                regionalEvents.Count;
+            eventIndex++
+        )
+        {
+            var regionalEvent =
+                regionalEvents[
+                    eventIndex
+                ];
+
+            var roundIndex =
+                eventIndex %
+                rounds.Count;
+
+            var pairings =
+                rounds[
+                    roundIndex
+                ];
+
+            foreach (
+                var pairing in
+                pairings
+            )
             {
-                pairings.Add(
-                    new TeamPairing
+                newMatchups.Add(
+                    new Matchup
                     {
-                        TeamOne = teamOne,
-                        TeamTwo = teamTwo
+                        LeagueId =
+                            leagueId,
+
+                        RegionalEventId =
+                            regionalEvent.Id,
+
+                        TeamOneId =
+                            pairing.TeamOne.Id,
+
+                        TeamTwoId =
+                            pairing.TeamTwo.Id
                     }
                 );
             }
         }
 
-        rounds.Add(pairings);
+        _context.Matchups.AddRange(
+            newMatchups
+        );
 
-        // Keep the first team fixed and rotate
-        // everybody else around it.
-        var lastTeam =
-            teams[teamCount - 1];
+        await _context
+            .SaveChangesAsync();
 
-        for (int i = teamCount - 1;
-             i > 1;
-             i--)
+        return Ok(new
         {
-            teams[i] = teams[i - 1];
+            LeagueId =
+                leagueId,
+
+            Teams =
+                teams.Count,
+
+            Regionals =
+                regionalEvents.Count,
+
+            MatchupsCreated =
+                newMatchups.Count,
+
+            Message =
+                "Schedule generated successfully."
+        });
+    }
+
+    /*
+     * Score only Starting 6 players
+     * for this exact Regional.
+     */
+    private async Task<int> CalculateTeamScore(
+        int leagueMemberId,
+        int regionalEventId)
+    {
+        return await _context
+            .RegionalLineupEntries
+            .Where(entry =>
+                entry.LeagueMemberId ==
+                    leagueMemberId &&
+                entry.RegionalEventId ==
+                    regionalEventId
+            )
+            .Join(
+                _context.EventResults
+                    .Where(result =>
+                        result.RegionalEventId ==
+                        regionalEventId
+                    ),
+
+                lineup =>
+                    lineup.PlayerId,
+
+                result =>
+                    result.PlayerId,
+
+                (
+                    lineup,
+                    result
+                ) =>
+                    result.FantasyPoints
+            )
+            .SumAsync();
+    }
+
+    /*
+     * Starting 6 scoring breakdown.
+     */
+    private async Task<List<PlayerScoreDto>>
+        GetTeamBreakdown(
+            int leagueMemberId,
+            int regionalEventId)
+    {
+        var lineupPlayers =
+            await _context
+                .RegionalLineupEntries
+                .Where(entry =>
+                    entry.LeagueMemberId ==
+                        leagueMemberId &&
+                    entry.RegionalEventId ==
+                        regionalEventId
+                )
+                .Include(entry =>
+                    entry.Player
+                )
+                .OrderBy(entry =>
+                    entry.Player
+                        .SeasonPoolOrder
+                )
+                .ToListAsync();
+
+        var results =
+            await _context.EventResults
+                .Where(result =>
+                    result.RegionalEventId ==
+                    regionalEventId
+                )
+                .ToListAsync();
+
+        return lineupPlayers
+            .Select(lineup =>
+            {
+                var result =
+                    results.FirstOrDefault(
+                        result =>
+                            result.PlayerId ==
+                            lineup.PlayerId
+                    );
+
+                return new PlayerScoreDto
+                {
+                    PlayerId =
+                        lineup.Player.Id,
+
+                    Name =
+                        lineup.Player.Name,
+
+                    Placement =
+                        result?.Placement,
+
+                    FantasyPoints =
+                        result?.FantasyPoints ??
+                        0
+                };
+            })
+            .ToList();
+    }
+
+    /*
+     * Round-robin schedule generator.
+     */
+    private static List<List<TeamPairing>>
+        GenerateRoundRobinRounds(
+            List<LeagueMember> leagueTeams)
+    {
+        var teams =
+            new List<LeagueMember?>(
+                leagueTeams
+            );
+
+        if (
+            teams.Count % 2 != 0
+        )
+        {
+            teams.Add(null);
         }
 
-        teams[1] = lastTeam;
+        var teamCount =
+            teams.Count;
+
+        var rounds =
+            new List<
+                List<TeamPairing>
+            >();
+
+        for (
+            var round = 0;
+            round <
+                teamCount - 1;
+            round++
+        )
+        {
+            var pairings =
+                new List<TeamPairing>();
+
+            for (
+                var i = 0;
+                i <
+                    teamCount / 2;
+                i++
+            )
+            {
+                var teamOne =
+                    teams[i];
+
+                var teamTwo =
+                    teams[
+                        teamCount -
+                        1 -
+                        i
+                    ];
+
+                if (
+                    teamOne != null &&
+                    teamTwo != null
+                )
+                {
+                    pairings.Add(
+                        new TeamPairing
+                        {
+                            TeamOne =
+                                teamOne,
+
+                            TeamTwo =
+                                teamTwo
+                        }
+                    );
+                }
+            }
+
+            rounds.Add(
+                pairings
+            );
+
+            var lastTeam =
+                teams[
+                    teamCount - 1
+                ];
+
+            for (
+                var i =
+                    teamCount - 1;
+                i > 1;
+                i--
+            )
+            {
+                teams[i] =
+                    teams[
+                        i - 1
+                    ];
+            }
+
+            teams[1] =
+                lastTeam;
+        }
+
+        return rounds;
     }
 
-    return rounds;
-    }
+    private int? GetCurrentUserId()
+    {
+        var userIdClaim =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier
+            );
 
+        if (
+            !int.TryParse(
+                userIdClaim,
+                out var userId
+            )
+        )
+        {
+            return null;
+        }
+
+        return userId;
+    }
 }
+
 public class CreateMatchupRequest
 {
     public int LeagueId { get; set; }
@@ -504,9 +904,12 @@ public class PlayerScoreDto
 
     public int FantasyPoints { get; set; }
 }
+
 public class TeamPairing
 {
-    public LeagueMember TeamOne { get; set; } = null!;
+    public LeagueMember TeamOne { get; set; } =
+        null!;
 
-    public LeagueMember TeamTwo { get; set; } = null!;
+    public LeagueMember TeamTwo { get; set; } =
+        null!;
 }
