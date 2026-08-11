@@ -1,16 +1,21 @@
 # Fantasy TCG
 
-Fantasy TCG is a fantasy sports platform built around the competitive Pokémon Trading Card Game.
+**A full-stack fantasy sports platform for competitive Pokémon TCG tournaments.**
 
-Instead of drafting NFL or NBA players, users draft competitive Pokémon TCG players and compete against other fantasy teams based on their players' performances at real-world Regional Championships.
+🌐 **[Live Application](https://playfantasytcg.com)**
+
+Fantasy TCG brings the structure of traditional fantasy sports to competitive Pokémon TCG. Instead of drafting NFL or NBA players, users draft real competitive Pokémon TCG players and compete based on their performances at real-world Regional Championships.
+
+Built with **Next.js, React, TypeScript, ASP.NET Core, C#, Entity Framework Core, and PostgreSQL**.
 
 ## About the Project
 
-Fantasy TCG brings the structure of traditional fantasy sports to competitive Pokémon TCG.
+Users can create or join fantasy leagues, draft competitive Pokémon TCG players, manage persistent rosters, submit event lineups, and compete in head-to-head matchups throughout the season.
 
-Users can create or join leagues, draft competitive players, manage their roster, submit Regional lineups, and compete in head-to-head matchups throughout the season.
+Real tournament results are converted into fantasy points, allowing each league's standings and matchups to reflect actual competitive Pokémon TCG performance.
 
-Player performance at real Pokémon TCG Regional Championships is converted into fantasy points, allowing fantasy teams to compete based on actual tournament results.
+The application includes a full frontend, REST API, authentication and authorization, persistent database storage, league management, drafting, lineup management, tournament data integration, and administrative tools.
+
 
 ## Features
 
@@ -251,17 +256,16 @@ Authorization is enforced by the backend rather than relying solely on frontend 
 
 ## Status
 
-Fantasy TCG is currently under active development.
+Fantasy TCG is live and actively under development.
+
+🌐 **Production:** https://playfantasytcg.com
 
 Core league, authentication, drafting, roster, Regional, matchup, standings, lineup, and administrative systems are implemented.
-
-Production deployment is currently being prepared.
 
 ## Future Development
 
 Planned improvements include continued work on:
 
-- Production deployment
 - Automated tournament result processing
 - Fantasy scoring automation
 - League scheduling
