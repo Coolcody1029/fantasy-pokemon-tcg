@@ -449,9 +449,40 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-zinc-900 px-6 py-8 text-center text-sm text-zinc-600">
-        Fantasy Pokémon TCG
-      </footer>
+      <footer className="border-t border-zinc-900 px-6 py-8">
+  <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-sm text-zinc-600 sm:flex-row">
+    <p>Fantasy Pokémon TCG</p>
+
+    <div className="flex items-center gap-6">
+      <a
+        href="https://www.linkedin.com/in/cody-criner-8029a6294/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="transition hover:text-yellow-400"
+      >
+        LinkedIn
+      </a>
+
+      <a
+        href="https://x.com/Coolcody171"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="transition hover:text-yellow-400"
+      >
+        X
+      </a>
+
+      <a
+        href="https://discord.gg/c3aG4YQYAT"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="transition hover:text-yellow-400"
+      >
+        Discord
+      </a>
+    </div>
+  </div>
+</footer>
     </main>
   );
 }
