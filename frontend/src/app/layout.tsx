@@ -13,8 +13,37 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://playfantasytcg.com"),
+
   title: "Fantasy TCG",
-  description: "Fantasy leagues for competitive Pokémon TCG",
+
+  description:
+    "Fantasy leagues for competitive Pokémon TCG. Draft real players, set Regional lineups, and earn points based on real tournament results.",
+
+  openGraph: {
+    title: "Fantasy TCG",
+    description:
+      "Draft real competitive Pokémon TCG players and compete against friends based on real tournament results.",
+    url: "https://playfantasytcg.com",
+    siteName: "Fantasy TCG",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Fantasy TCG — Fantasy leagues for competitive Pokémon TCG",
+      },
+    ],
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "Fantasy TCG",
+    description:
+      "Draft real competitive Pokémon TCG players and compete based on real tournament results.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
