@@ -190,6 +190,11 @@ export default function LeaguePage() {
     setScheduleMessage,
   ] = useState("");
 
+  const [
+    generatingPostseason,
+    setGeneratingPostseason,
+  ] = useState(false);
+
   const [error, setError] =
     useState("");
 
@@ -920,6 +925,85 @@ const rosterResponse =
     }
   }
 
+  /*
+   * ---------------------------------------
+   * GENERATE / ADVANCE POSTSEASON
+   * ---------------------------------------
+   *
+   * This is intentionally separate from the
+   * regular-season schedule generator.
+   */
+  async function handleGeneratePostseason() {
+    if (
+      !league ||
+      !myTeam?.isCommissioner
+    ) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        "Generate or advance the fantasy postseason? This will use the current regular-season standings and the events marked Playoff and Championship."
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setGeneratingPostseason(true);
+    setScheduleMessage("");
+    setError("");
+
+    try {
+      const response =
+        await apiFetch(
+          `/api/matchups/postseason/${league.id}`,
+          {
+            method: "POST",
+          }
+        );
+
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        throw new Error(
+          text ||
+            "Could not generate postseason."
+        );
+      }
+
+      const matchupsResponse =
+        await apiFetch(
+          `/api/matchups/league/${league.id}`
+        );
+
+      if (matchupsResponse.ok) {
+        const matchupData:
+          Matchup[] =
+            await matchupsResponse.json();
+
+        setMatchups(
+          matchupData
+        );
+      }
+
+      setScheduleMessage(
+        "Postseason updated successfully."
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not generate postseason."
+      );
+    } finally {
+      setGeneratingPostseason(
+        false
+      );
+    }
+  }
+
   return (
     <main className="min-h-screen bg-black text-white">
       <Navbar />
@@ -1028,6 +1112,24 @@ const rosterResponse =
                         0
                       ? "Regenerate Schedule"
                       : "Generate Schedule"}
+                </button>
+              )}
+
+            {hasRosters &&
+              myTeam?.isCommissioner && (
+                <button
+                  type="button"
+                  onClick={
+                    handleGeneratePostseason
+                  }
+                  disabled={
+                    generatingPostseason
+                  }
+                  className="rounded-xl border border-purple-500 px-6 py-3 font-bold text-purple-400 transition hover:bg-purple-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {generatingPostseason
+                    ? "Updating Playoffs..."
+                    : "Generate / Advance Playoffs"}
                 </button>
               )}
           </div>
