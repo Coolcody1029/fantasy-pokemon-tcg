@@ -148,7 +148,14 @@ public class MatchupsController : ControllerBase
                     request.TeamOneId,
 
                 TeamTwoId =
-                    request.TeamTwoId
+                    request.TeamTwoId,
+
+                MatchupType =
+                    regionalEvent.FantasyStage == "Playoff"
+                        ? "Semifinal"
+                        : regionalEvent.FantasyStage == "Championship"
+                            ? "Championship"
+                            : "RegularSeason"
             };
 
         _context.Matchups.Add(
@@ -163,7 +170,10 @@ public class MatchupsController : ControllerBase
             matchup.LeagueId,
             matchup.RegionalEventId,
             matchup.TeamOneId,
-            matchup.TeamTwoId
+            matchup.TeamTwoId,
+            matchup.MatchupType,
+            matchup.WinnerId,
+            matchup.IsFinalized
         });
     }
 
@@ -265,8 +275,13 @@ public class MatchupsController : ControllerBase
                     matchup.RegionalEvent.Id,
                     matchup.RegionalEvent.Name,
                     matchup.RegionalEvent.SeasonWeek,
-                    matchup.RegionalEvent.Status
+                    matchup.RegionalEvent.Status,
+                    matchup.RegionalEvent.FantasyStage
                 },
+
+                matchup.MatchupType,
+                matchup.WinnerId,
+                matchup.IsFinalized,
 
                 TeamOne = new
                 {
@@ -348,8 +363,13 @@ public class MatchupsController : ControllerBase
                 matchup.RegionalEvent.Id,
                 matchup.RegionalEvent.Name,
                 matchup.RegionalEvent.SeasonWeek,
-                matchup.RegionalEvent.Status
+                matchup.RegionalEvent.Status,
+                matchup.RegionalEvent.FantasyStage
             },
+
+            matchup.MatchupType,
+            matchup.WinnerId,
+            matchup.IsFinalized,
 
             TeamOne = new
             {
@@ -467,7 +487,9 @@ public class MatchupsController : ControllerBase
             await _context.RegionalEvents
                 .Where(eventItem =>
                     eventItem.Status ==
-                    "Upcoming"
+                        "Upcoming" &&
+                    eventItem.FantasyStage ==
+                        "RegularSeason"
                 )
                 .OrderBy(eventItem =>
                     eventItem.SeasonWeek
@@ -618,7 +640,10 @@ public class MatchupsController : ControllerBase
                             pairing.TeamOne.Id,
 
                         TeamTwoId =
-                            pairing.TeamTwo.Id
+                            pairing.TeamTwo.Id,
+
+                        MatchupType =
+                            "RegularSeason"
                     }
                 );
             }
@@ -647,6 +672,533 @@ public class MatchupsController : ControllerBase
 
             Message =
                 "Schedule generated successfully."
+        });
+    }
+
+    /*
+     * Build and advance the league postseason.
+     *
+     * Commissioner only.
+     *
+     * Current supported format:
+     *
+     * Top 4 after the regular season
+     * #1 vs #4
+     * #2 vs #3
+     *
+     * The two semifinal winners then play
+     * during the Championship event.
+     *
+     * This endpoint is intentionally idempotent.
+     * It can be called again as the postseason
+     * progresses without duplicating matchups.
+     */
+    [Authorize]
+    [HttpPost("postseason/{leagueId:int}")]
+    public async Task<ActionResult> GeneratePostseason(
+        int leagueId)
+    {
+        var userId =
+            GetCurrentUserId();
+
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        var league =
+            await _context.Leagues
+                .Include(l =>
+                    l.Members
+                )
+                .FirstOrDefaultAsync(l =>
+                    l.Id ==
+                    leagueId
+                );
+
+        if (league == null)
+        {
+            return NotFound(
+                "League not found."
+            );
+        }
+
+        var commissioner =
+            league.Members
+                .FirstOrDefault(member =>
+                    member.UserId ==
+                        userId.Value &&
+                    member.IsCommissioner
+                );
+
+        if (commissioner == null)
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Only the league commissioner can manage the postseason."
+            );
+        }
+
+        /*
+         * The first release intentionally supports
+         * the four-team playoff format only.
+         *
+         * Keeping the value on League still lets us
+         * expand to other formats later without
+         * redesigning the database again.
+         */
+        if (league.PlayoffTeamCount != 4)
+        {
+            return BadRequest(
+                "The current postseason format requires exactly 4 playoff teams."
+            );
+        }
+
+        if (league.Members.Count < 4)
+        {
+            return BadRequest(
+                "At least four teams are required for the playoffs."
+            );
+        }
+
+        var playoffEvent =
+            await _context.RegionalEvents
+                .Where(eventItem =>
+                    eventItem.FantasyStage ==
+                    "Playoff"
+                )
+                .OrderBy(eventItem =>
+                    eventItem.SeasonWeek
+                )
+                .FirstOrDefaultAsync();
+
+        if (playoffEvent == null)
+        {
+            return BadRequest(
+                "No Regional has been marked as the Playoff event."
+            );
+        }
+
+        var championshipEvent =
+            await _context.RegionalEvents
+                .Where(eventItem =>
+                    eventItem.FantasyStage ==
+                    "Championship"
+                )
+                .OrderBy(eventItem =>
+                    eventItem.SeasonWeek
+                )
+                .FirstOrDefaultAsync();
+
+        if (championshipEvent == null)
+        {
+            return BadRequest(
+                "No event has been marked as the Championship event."
+            );
+        }
+
+        if (
+            championshipEvent.SeasonWeek <=
+            playoffEvent.SeasonWeek
+        )
+        {
+            return BadRequest(
+                "The Championship event must occur after the Playoff event."
+            );
+        }
+
+        var semifinalMatchups =
+            await _context.Matchups
+                .Where(matchup =>
+                    matchup.LeagueId ==
+                        leagueId &&
+                    matchup.MatchupType ==
+                        "Semifinal"
+                )
+                .Include(matchup =>
+                    matchup.RegionalEvent
+                )
+                .OrderBy(matchup =>
+                    matchup.Id
+                )
+                .ToListAsync();
+
+        /*
+         * PHASE 1:
+         * Create the semifinals from the final
+         * regular-season standings.
+         */
+        if (semifinalMatchups.Count == 0)
+        {
+            if (playoffEvent.Status != "Upcoming")
+            {
+                return BadRequest(
+                    "The Playoff event must still be Upcoming before semifinal matchups are created."
+                );
+            }
+
+            var regularSeasonMatchups =
+                await _context.Matchups
+                    .Where(matchup =>
+                        matchup.LeagueId ==
+                            leagueId &&
+                        matchup.MatchupType ==
+                            "RegularSeason"
+                    )
+                    .Include(matchup =>
+                        matchup.RegionalEvent
+                    )
+                    .ToListAsync();
+
+            if (regularSeasonMatchups.Count == 0)
+            {
+                return BadRequest(
+                    "This league does not have a regular-season schedule."
+                );
+            }
+
+            var unfinishedRegularSeason =
+                regularSeasonMatchups.Any(matchup =>
+                    matchup.RegionalEvent.Status !=
+                        "Final"
+                );
+
+            if (unfinishedRegularSeason)
+            {
+                return BadRequest(
+                    "The regular season must be fully Final before playoff seeding can be created."
+                );
+            }
+
+            var standings =
+                await GetRegularSeasonStandings(
+                    leagueId
+                );
+
+            if (standings.Count < 4)
+            {
+                return BadRequest(
+                    "There are not enough teams in the regular-season standings to create the playoffs."
+                );
+            }
+
+            var seedOne = standings[0];
+            var seedTwo = standings[1];
+            var seedThree = standings[2];
+            var seedFour = standings[3];
+
+            var newSemifinals =
+                new List<Matchup>
+                {
+                    new()
+                    {
+                        LeagueId = leagueId,
+                        RegionalEventId =
+                            playoffEvent.Id,
+                        TeamOneId =
+                            seedOne.TeamId,
+                        TeamTwoId =
+                            seedFour.TeamId,
+                        MatchupType =
+                            "Semifinal"
+                    },
+                    new()
+                    {
+                        LeagueId = leagueId,
+                        RegionalEventId =
+                            playoffEvent.Id,
+                        TeamOneId =
+                            seedTwo.TeamId,
+                        TeamTwoId =
+                            seedThree.TeamId,
+                        MatchupType =
+                            "Semifinal"
+                    }
+                };
+
+            _context.Matchups.AddRange(
+                newSemifinals
+            );
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                LeagueId = leagueId,
+                Stage = "Semifinal",
+                Event = playoffEvent.Name,
+                Seeds = standings
+                    .Take(4)
+                    .Select(standing =>
+                        new
+                        {
+                            standing.Seed,
+                            standing.TeamId,
+                            standing.TeamName,
+                            standing.Wins,
+                            standing.Losses,
+                            standing.Ties,
+                            standing.PointsFor
+                        }
+                    ),
+                Matchups = newSemifinals
+                    .Select(matchup =>
+                        new
+                        {
+                            matchup.Id,
+                            matchup.TeamOneId,
+                            matchup.TeamTwoId
+                        }
+                    ),
+                Message =
+                    "Fantasy TCG playoff semifinals created successfully."
+            });
+        }
+
+        if (semifinalMatchups.Count != 2)
+        {
+            return BadRequest(
+                "This league must have exactly two semifinal matchups."
+            );
+        }
+
+        /*
+         * PHASE 2:
+         * Once the Playoff Regional is Final,
+         * finalize the semifinals and create
+         * the World Championship matchup.
+         */
+        if (
+            semifinalMatchups.Any(matchup =>
+                !matchup.IsFinalized
+            )
+        )
+        {
+            if (playoffEvent.Status != "Final")
+            {
+                return Ok(new
+                {
+                    LeagueId = leagueId,
+                    Stage = "Semifinal",
+                    Event = playoffEvent.Name,
+                    Status = playoffEvent.Status,
+                    Message =
+                        "The semifinals exist and will advance once the Playoff event is Final."
+                });
+            }
+
+            var standings =
+                await GetRegularSeasonStandings(
+                    leagueId
+                );
+
+            var seedLookup =
+                standings.ToDictionary(
+                    standing =>
+                        standing.TeamId,
+                    standing =>
+                        standing.Seed
+                );
+
+            foreach (
+                var semifinal in
+                semifinalMatchups
+            )
+            {
+                var teamOneScore =
+                    await CalculateTeamScore(
+                        semifinal.TeamOneId,
+                        semifinal.RegionalEventId
+                    );
+
+                var teamTwoScore =
+                    await CalculateTeamScore(
+                        semifinal.TeamTwoId,
+                        semifinal.RegionalEventId
+                    );
+
+                semifinal.WinnerId =
+                    ResolvePostseasonWinner(
+                        semifinal.TeamOneId,
+                        teamOneScore,
+                        semifinal.TeamTwoId,
+                        teamTwoScore,
+                        seedLookup
+                    );
+
+                semifinal.IsFinalized =
+                    true;
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        var championshipMatchup =
+            await _context.Matchups
+                .Include(matchup =>
+                    matchup.TeamOne
+                )
+                .Include(matchup =>
+                    matchup.TeamTwo
+                )
+                .FirstOrDefaultAsync(matchup =>
+                    matchup.LeagueId ==
+                        leagueId &&
+                    matchup.MatchupType ==
+                        "Championship"
+                );
+
+        if (championshipMatchup == null)
+        {
+            if (championshipEvent.Status != "Upcoming")
+            {
+                return BadRequest(
+                    "The Championship event must still be Upcoming before the championship matchup is created."
+                );
+            }
+
+            var semifinalWinners =
+                semifinalMatchups
+                    .Where(matchup =>
+                        matchup.IsFinalized &&
+                        matchup.WinnerId.HasValue
+                    )
+                    .Select(matchup =>
+                        matchup.WinnerId!.Value
+                    )
+                    .ToList();
+
+            if (semifinalWinners.Count != 2)
+            {
+                return BadRequest(
+                    "Both semifinal winners must be finalized before the championship matchup can be created."
+                );
+            }
+
+            championshipMatchup =
+                new Matchup
+                {
+                    LeagueId = leagueId,
+                    RegionalEventId =
+                        championshipEvent.Id,
+                    TeamOneId =
+                        semifinalWinners[0],
+                    TeamTwoId =
+                        semifinalWinners[1],
+                    MatchupType =
+                        "Championship"
+                };
+
+            _context.Matchups.Add(
+                championshipMatchup
+            );
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                LeagueId = leagueId,
+                Stage = "Championship",
+                Event = championshipEvent.Name,
+                championshipMatchup.Id,
+                championshipMatchup.TeamOneId,
+                championshipMatchup.TeamTwoId,
+                Message =
+                    "Fantasy TCG Championship matchup created successfully."
+            });
+        }
+
+        /*
+         * PHASE 3:
+         * Once Worlds is Final, permanently
+         * record the Fantasy TCG champion.
+         */
+        if (
+            championshipEvent.Status == "Final" &&
+            !championshipMatchup.IsFinalized
+        )
+        {
+            var standings =
+                await GetRegularSeasonStandings(
+                    leagueId
+                );
+
+            var seedLookup =
+                standings.ToDictionary(
+                    standing =>
+                        standing.TeamId,
+                    standing =>
+                        standing.Seed
+                );
+
+            var teamOneScore =
+                await CalculateTeamScore(
+                    championshipMatchup.TeamOneId,
+                    championshipMatchup.RegionalEventId
+                );
+
+            var teamTwoScore =
+                await CalculateTeamScore(
+                    championshipMatchup.TeamTwoId,
+                    championshipMatchup.RegionalEventId
+                );
+
+            championshipMatchup.WinnerId =
+                ResolvePostseasonWinner(
+                    championshipMatchup.TeamOneId,
+                    teamOneScore,
+                    championshipMatchup.TeamTwoId,
+                    teamTwoScore,
+                    seedLookup
+                );
+
+            championshipMatchup.IsFinalized =
+                true;
+
+            await _context.SaveChangesAsync();
+        }
+
+        if (
+            championshipMatchup.IsFinalized &&
+            championshipMatchup.WinnerId.HasValue
+        )
+        {
+            var champion =
+                league.Members
+                    .FirstOrDefault(member =>
+                        member.Id ==
+                            championshipMatchup.WinnerId.Value
+                    );
+
+            return Ok(new
+            {
+                LeagueId = leagueId,
+                Stage = "Champion",
+                ChampionshipEvent =
+                    championshipEvent.Name,
+                Champion = champion == null
+                    ? null
+                    : new
+                    {
+                        champion.Id,
+                        Name = champion.TeamName
+                    },
+                Message =
+                    "The Fantasy TCG season is complete."
+            });
+        }
+
+        return Ok(new
+        {
+            LeagueId = leagueId,
+            Stage = "Championship",
+            Event = championshipEvent.Name,
+            Status = championshipEvent.Status,
+            championshipMatchup.Id,
+            championshipMatchup.TeamOneId,
+            championshipMatchup.TeamTwoId,
+            Message =
+                "The Fantasy TCG Championship matchup is ready."
         });
     }
 
@@ -749,6 +1301,220 @@ public class MatchupsController : ControllerBase
                 };
             })
             .ToList();
+    }
+
+    /*
+     * Build regular-season standings for
+     * postseason seeding.
+     *
+     * Ordering:
+     * 1. Wins
+     * 2. Ties
+     * 3. Total fantasy points scored
+     * 4. Team ID as a deterministic final fallback
+     *
+     * Final matchups with no submitted lineup are
+     * ignored here exactly like GetLeagueMatchups.
+     */
+    private async Task<List<PostseasonStanding>>
+        GetRegularSeasonStandings(
+            int leagueId)
+    {
+        var teams =
+            await _context.LeagueMembers
+                .Where(member =>
+                    member.LeagueId ==
+                    leagueId
+                )
+                .OrderBy(member =>
+                    member.Id
+                )
+                .ToListAsync();
+
+        var standings =
+            teams.ToDictionary(
+                team =>
+                    team.Id,
+                team =>
+                    new PostseasonStanding
+                    {
+                        TeamId = team.Id,
+                        TeamName =
+                            team.TeamName
+                    }
+            );
+
+        var matchups =
+            await _context.Matchups
+                .Where(matchup =>
+                    matchup.LeagueId ==
+                        leagueId &&
+                    matchup.MatchupType ==
+                        "RegularSeason" &&
+                    matchup.RegionalEvent.Status ==
+                        "Final"
+                )
+                .Include(matchup =>
+                    matchup.RegionalEvent
+                )
+                .ToListAsync();
+
+        foreach (
+            var matchup in
+            matchups
+        )
+        {
+            var hasSubmittedLineup =
+                await _context
+                    .RegionalLineupEntries
+                    .AnyAsync(entry =>
+                        entry.RegionalEventId ==
+                            matchup.RegionalEventId &&
+                        (
+                            entry.LeagueMemberId ==
+                                matchup.TeamOneId ||
+                            entry.LeagueMemberId ==
+                                matchup.TeamTwoId
+                        )
+                    );
+
+            if (!hasSubmittedLineup)
+            {
+                continue;
+            }
+
+            var teamOneScore =
+                await CalculateTeamScore(
+                    matchup.TeamOneId,
+                    matchup.RegionalEventId
+                );
+
+            var teamTwoScore =
+                await CalculateTeamScore(
+                    matchup.TeamTwoId,
+                    matchup.RegionalEventId
+                );
+
+            var teamOne =
+                standings[
+                    matchup.TeamOneId
+                ];
+
+            var teamTwo =
+                standings[
+                    matchup.TeamTwoId
+                ];
+
+            teamOne.GamesPlayed++;
+            teamTwo.GamesPlayed++;
+
+            teamOne.PointsFor +=
+                teamOneScore;
+
+            teamTwo.PointsFor +=
+                teamTwoScore;
+
+            if (teamOneScore > teamTwoScore)
+            {
+                teamOne.Wins++;
+                teamTwo.Losses++;
+            }
+            else if (teamTwoScore > teamOneScore)
+            {
+                teamTwo.Wins++;
+                teamOne.Losses++;
+            }
+            else
+            {
+                teamOne.Ties++;
+                teamTwo.Ties++;
+            }
+        }
+
+        var ordered =
+            standings.Values
+                .OrderByDescending(standing =>
+                    standing.Wins
+                )
+                .ThenByDescending(standing =>
+                    standing.Ties
+                )
+                .ThenByDescending(standing =>
+                    standing.PointsFor
+                )
+                .ThenBy(standing =>
+                    standing.TeamId
+                )
+                .ToList();
+
+        for (
+            var index = 0;
+            index < ordered.Count;
+            index++
+        )
+        {
+            ordered[index].Seed =
+                index + 1;
+        }
+
+        return ordered;
+    }
+
+    /*
+     * Resolve a postseason winner.
+     *
+     * If fantasy scores are tied, the higher
+     * regular-season seed advances. This avoids
+     * an unresolved playoff bracket while keeping
+     * the tiebreak deterministic.
+     */
+    private static int ResolvePostseasonWinner(
+        int teamOneId,
+        int teamOneScore,
+        int teamTwoId,
+        int teamTwoScore,
+        Dictionary<int, int> seedLookup)
+    {
+        if (teamOneScore > teamTwoScore)
+        {
+            return teamOneId;
+        }
+
+        if (teamTwoScore > teamOneScore)
+        {
+            return teamTwoId;
+        }
+
+        var teamOneSeed =
+            seedLookup.TryGetValue(
+                teamOneId,
+                out var seedOne
+            )
+                ? seedOne
+                : int.MaxValue;
+
+        var teamTwoSeed =
+            seedLookup.TryGetValue(
+                teamTwoId,
+                out var seedTwo
+            )
+                ? seedTwo
+                : int.MaxValue;
+
+        if (teamOneSeed < teamTwoSeed)
+        {
+            return teamOneId;
+        }
+
+        if (teamTwoSeed < teamOneSeed)
+        {
+            return teamTwoId;
+        }
+
+        return Math.Min(
+            teamOneId,
+            teamTwoId
+        );
     }
 
     /*
@@ -939,4 +1705,24 @@ public class TeamPairing
 
     public LeagueMember TeamTwo { get; set; } =
         null!;
+}
+
+public class PostseasonStanding
+{
+    public int Seed { get; set; }
+
+    public int TeamId { get; set; }
+
+    public string TeamName { get; set; } =
+        string.Empty;
+
+    public int GamesPlayed { get; set; }
+
+    public int Wins { get; set; }
+
+    public int Losses { get; set; }
+
+    public int Ties { get; set; }
+
+    public int PointsFor { get; set; }
 }

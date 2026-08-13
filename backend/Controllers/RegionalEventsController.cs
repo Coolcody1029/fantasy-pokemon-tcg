@@ -68,6 +68,7 @@ public class RegionalEventsController : ControllerBase
             regionalEvent.StartDate,
             regionalEvent.SeasonWeek,
             regionalEvent.Status,
+            regionalEvent.FantasyStage,
 
             Results = regionalEvent.Results
                 .OrderBy(r => r.Placement)
@@ -126,6 +127,18 @@ public class RegionalEventsController : ControllerBase
             );
         }
 
+        var normalizedFantasyStage =
+            NormalizeFantasyStage(
+                request.FantasyStage
+            );
+
+        if (normalizedFantasyStage == null)
+        {
+            return BadRequest(
+                "Fantasy stage must be RegularSeason, Playoff, or Championship."
+            );
+        }
+
         var weekExists =
             await _context.RegionalEvents
                 .AnyAsync(e =>
@@ -156,7 +169,10 @@ public class RegionalEventsController : ControllerBase
                     request.SeasonWeek,
 
                 Status =
-                    "Upcoming"
+                    "Upcoming",
+
+                FantasyStage =
+                    normalizedFantasyStage
             };
 
         _context.RegionalEvents.Add(
@@ -166,6 +182,90 @@ public class RegionalEventsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(regionalEvent);
+    }
+
+    /*
+     * Update how a real-world event is used
+     * by the fantasy season.
+     *
+     * RegularSeason -> normal scheduled week
+     * Playoff       -> semifinal week
+     * Championship  -> Fantasy TCG title week
+     *
+     * App admin only.
+     */
+    [Authorize]
+    [HttpPut("{id:int}/fantasy-stage")]
+    public async Task<ActionResult> UpdateFantasyStage(
+        int id,
+        UpdateRegionalFantasyStageRequest request)
+    {
+        if (!IsAppAdmin())
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                "Admin access required."
+            );
+        }
+
+        var regionalEvent =
+            await _context.RegionalEvents
+                .FirstOrDefaultAsync(e =>
+                    e.Id == id
+                );
+
+        if (regionalEvent == null)
+        {
+            return NotFound(
+                "Regional event not found."
+            );
+        }
+
+        var normalizedFantasyStage =
+            NormalizeFantasyStage(
+                request.FantasyStage
+            );
+
+        if (normalizedFantasyStage == null)
+        {
+            return BadRequest(
+                "Fantasy stage must be RegularSeason, Playoff, or Championship."
+            );
+        }
+
+        if (
+            normalizedFantasyStage !=
+            "RegularSeason"
+        )
+        {
+            var stageAlreadyExists =
+                await _context.RegionalEvents
+                    .AnyAsync(e =>
+                        e.Id != id &&
+                        e.FantasyStage ==
+                            normalizedFantasyStage
+                    );
+
+            if (stageAlreadyExists)
+            {
+                return BadRequest(
+                    $"Another event is already marked as {normalizedFantasyStage}."
+                );
+            }
+        }
+
+        regionalEvent.FantasyStage =
+            normalizedFantasyStage;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            regionalEvent.Id,
+            regionalEvent.Name,
+            regionalEvent.SeasonWeek,
+            regionalEvent.FantasyStage
+        });
     }
 
     /*
@@ -1053,6 +1153,43 @@ public class RegionalEventsController : ControllerBase
     }
 
     /*
+     * Normalizes fantasy-stage input while keeping
+     * the database values consistent.
+     */
+    private static string? NormalizeFantasyStage(
+        string? fantasyStage)
+    {
+        if (
+            string.IsNullOrWhiteSpace(
+                fantasyStage
+            )
+        )
+        {
+            return "RegularSeason";
+        }
+
+        return fantasyStage
+            .Trim()
+            .ToLowerInvariant() switch
+        {
+            "regularseason" =>
+                "RegularSeason",
+
+            "regular season" =>
+                "RegularSeason",
+
+            "playoff" =>
+                "Playoff",
+
+            "championship" =>
+                "Championship",
+
+            _ =>
+                null
+        };
+    }
+
+    /*
      * Application-wide admin check.
      *
      * Uses the same Admin:Email configuration
@@ -1229,6 +1366,20 @@ public class CreateRegionalEventRequest
     public DateTime StartDate { get; set; }
 
     public int SeasonWeek { get; set; }
+
+    /*
+     * Defaults to RegularSeason so the existing
+     * admin create-event form keeps working until
+     * its FantasyStage selector is added.
+     */
+    public string FantasyStage { get; set; } =
+        "RegularSeason";
+}
+
+public class UpdateRegionalFantasyStageRequest
+{
+    public string FantasyStage { get; set; } =
+        "RegularSeason";
 }
 
 public class AddEventResultRequest

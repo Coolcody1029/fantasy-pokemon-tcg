@@ -15,4 +15,15 @@ public class RegionalEvent
     public List<EventResult> Results { get; set; } = new();
 
     public string Status { get; set; } = "Upcoming";
+
+    /*
+     * Controls how this event is used
+     * in the fantasy season.
+     *
+     * RegularSeason
+     * Playoff
+     * Championship
+     */
+    public string FantasyStage { get; set; } =
+        "RegularSeason";
 }

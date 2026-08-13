@@ -15,4 +15,13 @@ public class Matchup
 
     public int TeamTwoId { get; set; }
     public LeagueMember TeamTwo { get; set; } = null!;
+
+    // RegularSeason, Semifinal, Championship
+    public string MatchupType { get; set; } = "RegularSeason";
+
+    // Populated once the matchup/event has been finalized.
+    public int? WinnerId { get; set; }
+    public LeagueMember? Winner { get; set; }
+
+    public bool IsFinalized { get; set; } = false;
 }

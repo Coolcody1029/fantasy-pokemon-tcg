@@ -34,6 +34,7 @@ type RegionalEvent = {
   startDate: string;
   seasonWeek: number;
   status: string;
+  fantasyStage: string;
 };
 
 type LimitlessImportResponse = {
@@ -71,6 +72,11 @@ export default function AdminRegionalsPage() {
 
   const [seasonWeek, setSeasonWeek] =
     useState(1);
+
+  const [
+    fantasyStage,
+    setFantasyStage,
+  ] = useState("RegularSeason");
 
   const [
     selectedEventId,
@@ -113,6 +119,11 @@ export default function AdminRegionalsPage() {
   const [
     changingStatusId,
     setChangingStatusId,
+  ] = useState<number | null>(null);
+
+  const [
+    changingFantasyStageId,
+    setChangingFantasyStageId,
   ] = useState<number | null>(null);
 
   const [message, setMessage] =
@@ -228,6 +239,7 @@ export default function AdminRegionalsPage() {
                   startDate
                 ).toISOString(),
               seasonWeek,
+              fantasyStage,
             }),
           }
         );
@@ -274,6 +286,9 @@ export default function AdminRegionalsPage() {
       setEventName("");
       setLocation("");
       setStartDate("");
+      setFantasyStage(
+        "RegularSeason"
+      );
 
       setSeasonWeek(
         (previous) =>
@@ -357,6 +372,76 @@ export default function AdminRegionalsPage() {
       );
     } finally {
       setChangingStatusId(null);
+    }
+  }
+
+  async function handleFantasyStageChange(
+    eventId: number,
+    fantasyStage: string
+  ) {
+    setError("");
+    setMessage("");
+    setChangingFantasyStageId(eventId);
+
+    try {
+      const response =
+        await apiFetch(
+          `/api/regionalevents/${eventId}/fantasy-stage`,
+          {
+            method: "PUT",
+
+            body: JSON.stringify({
+              fantasyStage,
+            }),
+          }
+        );
+
+      if (
+        response.status === 401
+      ) {
+        router.push("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const text =
+          await response.text();
+
+        throw new Error(
+          text ||
+            "Could not update fantasy stage."
+        );
+      }
+
+      const updatedEvent =
+        await response.json();
+
+      setEvents(
+        (previous) =>
+          previous.map(
+            (regionalEvent) =>
+              regionalEvent.id ===
+              eventId
+                ? {
+                    ...regionalEvent,
+                    fantasyStage:
+                      updatedEvent.fantasyStage,
+                  }
+                : regionalEvent
+          )
+      );
+
+      setMessage(
+        `Fantasy stage changed to ${updatedEvent.fantasyStage}.`
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not update fantasy stage."
+      );
+    } finally {
+      setChangingFantasyStageId(null);
     }
   }
 
@@ -678,6 +763,40 @@ export default function AdminRegionalsPage() {
                   type="number"
                   className="w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none focus:border-yellow-400"
                 />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Fantasy Stage
+                </label>
+
+                <select
+                  value={
+                    fantasyStage
+                  }
+                  onChange={(e) =>
+                    setFantasyStage(
+                      e.target.value
+                    )
+                  }
+                  className="w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none focus:border-yellow-400"
+                >
+                  <option value="RegularSeason">
+                    Regular Season
+                  </option>
+
+                  <option value="Playoff">
+                    Playoff
+                  </option>
+
+                  <option value="Championship">
+                    Championship
+                  </option>
+                </select>
+
+                <p className="mt-2 text-xs text-zinc-500">
+                  Use Playoff for the semifinal week and Championship for Worlds.
+                </p>
               </div>
 
               <button
@@ -1013,9 +1132,52 @@ export default function AdminRegionalsPage() {
                             }
                           </span>
                         </p>
+
+                        <p className="mt-1 text-xs text-zinc-600">
+                          Fantasy
+                          stage:{" "}
+                          <span className="font-bold text-yellow-400">
+                            {
+                              regionalEvent.fantasyStage ===
+                              "RegularSeason"
+                                ? "Regular Season"
+                                : regionalEvent.fantasyStage
+                            }
+                          </span>
+                        </p>
                       </div>
 
-                      <select
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <select
+                          value={
+                            regionalEvent.fantasyStage
+                          }
+                          disabled={
+                            changingFantasyStageId ===
+                            regionalEvent.id
+                          }
+                          onChange={(e) =>
+                            handleFantasyStageChange(
+                              regionalEvent.id,
+                              e.target.value
+                            )
+                          }
+                          className="rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <option value="RegularSeason">
+                            Regular Season
+                          </option>
+
+                          <option value="Playoff">
+                            Playoff
+                          </option>
+
+                          <option value="Championship">
+                            Championship
+                          </option>
+                        </select>
+
+                        <select
                         value={
                           regionalEvent.status
                         }
@@ -1044,6 +1206,7 @@ export default function AdminRegionalsPage() {
                           Final
                         </option>
                       </select>
+                      </div>
                     </div>
                   )
                 )
